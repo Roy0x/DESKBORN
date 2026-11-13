@@ -20,6 +20,7 @@ import {
   setPlacementXrUi,
   setVillageXrUi,
 } from './xr-ui.js';
+import { playPlant, unlockAudio } from './audio.js';
 import {
   AmbientLight,
   BoxGeometry,
@@ -148,6 +149,61 @@ function buildVillage(): Group {
   soil.position.set(0.045, 0.049, 0.025);
   village.add(soil);
 
+  const pathMaterial = mat(0xcdbb94, 0.92);
+  const pathPoints: Array<[number, number, number]> = [
+    [-0.12, 0.055, -0.02],
+    [-0.055, 0.055, 0.0],
+    [0.01, 0.055, 0.015],
+    [0.075, 0.055, 0.035],
+    [0.135, 0.055, 0.065],
+  ];
+  for (const [x, y, z] of pathPoints) {
+    const stone = new Mesh(new BoxGeometry(0.055, 0.008, 0.034), pathMaterial);
+    stone.position.set(x, y, z);
+    stone.rotation.y = (x + z) * 2.2;
+    village.add(stone);
+  }
+
+  const well = new Group();
+  const wellBase = new Mesh(
+    new CylinderGeometry(0.042, 0.048, 0.042, 12),
+    mat(0x8e8676, 0.9),
+  );
+  wellBase.position.y = 0.071;
+  const wellHole = new Mesh(
+    new CylinderGeometry(0.028, 0.028, 0.045, 12),
+    new MeshStandardMaterial({
+      color: 0x172126,
+      roughness: 0.45,
+      metalness: 0.08,
+    }),
+  );
+  wellHole.position.y = 0.094;
+  well.add(wellBase, wellHole);
+  well.position.set(0.0, 0, 0.105);
+  village.add(well);
+
+  const crystalMaterial = new MeshStandardMaterial({
+    color: 0xb9ff7a,
+    emissive: 0x4d8c2a,
+    emissiveIntensity: 1.5,
+    roughness: 0.28,
+    metalness: 0.05,
+  });
+  for (const [x, z] of [
+    [-0.31, -0.02],
+    [0.30, 0.15],
+    [-0.08, -0.29],
+  ] as Array<[number, number]>) {
+    const crystal = new Mesh(
+      new ConeGeometry(0.012, 0.055, 5),
+      crystalMaterial,
+    );
+    crystal.position.set(x, 0.075, z);
+    crystal.rotation.y = x * 9;
+    village.add(crystal);
+  }
+
   village.add(
     house(-0.16, -0.08, 1),
     house(0.105, -0.145, 0.86),
@@ -172,17 +228,17 @@ function setHud(mode: 'scan' | 'invalid' | 'ready' | 'planted'): void {
 
   const content = {
     scan: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.5',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.6',
       title: 'Aim at a surface',
       sub: 'Point the right-hand ray at a tabletop or other horizontal surface.',
     },
     invalid: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.5',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.6',
       title: 'Find a flatter surface',
       sub: 'The village can only be planted on a reasonably horizontal surface.',
     },
     ready: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.5',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.6',
       title: 'Pinch / trigger to plant',
       sub: 'The green ring marks where the miniature world will grow.',
     },
@@ -346,6 +402,7 @@ class DeskbornPlacementSystem extends DeskbornPlacementSystemBase {
       state.village.visible = true;
       state.planted = true;
       state.growth = 0;
+      playPlant();
       setPreviewChildrenVisible(false);
       setHud('planted');
     });
@@ -421,6 +478,9 @@ World.create(sceneContainer, projectOptions).then((world) => {
   world.registerSystem(CitizenSystem);
   world.registerSystem(StormSystem);
   addHud();
+
+  window.addEventListener('pointerdown', unlockAudio, { once: true });
+  window.addEventListener('keydown', unlockAudio, { once: true });
 
   window.addEventListener('keydown', (event) => {
     if (event.code === 'Space') {
