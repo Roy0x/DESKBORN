@@ -18,6 +18,7 @@ import {
   Vector3,
 } from 'three';
 import { setVillageXrUi } from './xr-ui.js';
+import { playGrab } from './audio.js';
 
 type CitizenRuntime = {
   seed: number;
@@ -74,14 +75,14 @@ function citizenModel(
     bodyMaterial,
   );
   body.position.y = 0.055;
-  body.castShadow = true;
+  body.castShadow = false;
 
   const head = new Mesh(
     new SphereGeometry(0.014, 10, 8),
     headMaterial,
   );
   head.position.y = 0.092;
-  head.castShadow = true;
+  head.castShadow = false;
 
   const hitVolume = new Mesh(
     new SphereGeometry(0.037, 8, 6),
@@ -227,6 +228,7 @@ export class CitizenSystem extends CitizenSystemBase {
       }
 
       if (grabbed) {
+        if (!runtime.wasGrabbed) playGrab();
         runtime.wasGrabbed = true;
         continue;
       }
