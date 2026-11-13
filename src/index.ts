@@ -228,17 +228,17 @@ function setHud(mode: 'scan' | 'invalid' | 'ready' | 'planted'): void {
 
   const content = {
     scan: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.6',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.7',
       title: 'Aim at a surface',
       sub: 'Point the right-hand ray at a tabletop or other horizontal surface.',
     },
     invalid: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.6',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.7',
       title: 'Find a flatter surface',
       sub: 'The village can only be planted on a reasonably horizontal surface.',
     },
     ready: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.6',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.7',
       title: 'Pinch / trigger to plant',
       sub: 'The green ring marks where the miniature world will grow.',
     },
@@ -270,6 +270,80 @@ function setHud(mode: 'scan' | 'invalid' | 'ready' | 'planted'): void {
       'accent',
     );
   }
+}
+
+function addXrLauncher(world: World): void {
+  const wrapper = document.createElement('div');
+  wrapper.id = 'deskborn-xr-launcher';
+  wrapper.innerHTML = `
+    <button id="deskborn-enter-xr" type="button">ENTER XR</button>
+    <div id="deskborn-xr-status">Meta Quest / WebXR-compatible browser required.</div>
+  `;
+  document.body.appendChild(wrapper);
+
+  const style = document.createElement('style');
+  style.textContent = `
+    #deskborn-xr-launcher {
+      position: fixed;
+      left: 22px;
+      bottom: 22px;
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: flex-start;
+      font-family: system-ui, sans-serif;
+    }
+    #deskborn-enter-xr {
+      appearance: none;
+      border: 1px solid rgba(185,255,122,.55);
+      border-radius: 14px;
+      padding: 13px 18px;
+      background: rgba(12,14,12,.9);
+      color: #d9ffb4;
+      font: 800 14px/1 system-ui, sans-serif;
+      letter-spacing: .08em;
+      cursor: pointer;
+      box-shadow: 0 14px 36px rgba(0,0,0,.28);
+    }
+    #deskborn-enter-xr:hover {
+      background: rgba(31,43,25,.96);
+    }
+    #deskborn-enter-xr:disabled {
+      opacity: .55;
+      cursor: default;
+    }
+    #deskborn-xr-status {
+      max-width: 360px;
+      color: rgba(244,240,232,.62);
+      font: 500 11px/1.35 system-ui, sans-serif;
+    }
+  `;
+  document.head.appendChild(style);
+
+  const button = document.getElementById('deskborn-enter-xr');
+  const status = document.getElementById('deskborn-xr-status');
+  if (!(button instanceof HTMLButtonElement) || !(status instanceof HTMLDivElement)) {
+    return;
+  }
+
+  button.addEventListener('click', () => {
+    unlockAudio();
+    button.disabled = true;
+    status.textContent = 'Requesting immersive AR…';
+
+    Promise.resolve(world.launchXR())
+      .then(() => {
+        status.textContent = 'XR session active.';
+      })
+      .catch((error: unknown) => {
+        button.disabled = false;
+        const message = error instanceof Error ? error.message : String(error);
+        status.textContent =
+          'XR could not start here. Open this HTTPS page in Meta Quest Browser. ' +
+          message;
+      });
+  });
 }
 
 function addHud(): void {
@@ -478,6 +552,7 @@ World.create(sceneContainer, projectOptions).then((world) => {
   world.registerSystem(CitizenSystem);
   world.registerSystem(StormSystem);
   addHud();
+  addXrLauncher(world);
 
   window.addEventListener('pointerdown', unlockAudio, { once: true });
   window.addEventListener('keydown', unlockAudio, { once: true });
