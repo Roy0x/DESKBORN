@@ -5,6 +5,7 @@ import {
   createSystem,
 } from '@iwsdk/core';
 import projectOptions from 'virtual:iwsdk-project';
+import { CitizenSystem, createCitizens, setCitizensActive } from './citizens.js';
 import {
   AmbientLight,
   BoxGeometry,
@@ -140,10 +141,7 @@ function buildVillage(): Group {
     tree(-0.255, 0.115, 1),
     tree(-0.045, 0.205, 0.9),
     tree(0.275, -0.02, 0.76),
-    citizen(-0.04, -0.03, 0x5079a8),
-    citizen(0.05, 0.09, 0xc97155),
-    citizen(0.14, 0.01, 0x6c5b87),
-    citizen(-0.13, 0.12, 0x4f7a62),
+
   );
 
   village.scale.setScalar(0.001);
@@ -160,17 +158,17 @@ function setHud(mode: 'scan' | 'invalid' | 'ready' | 'planted'): void {
 
   const content = {
     scan: {
-      eyebrow: 'DESKBORN — SEED / DAY 2',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.3',
       title: 'Aim at a surface',
       sub: 'Point the right-hand ray at a tabletop or other horizontal surface.',
     },
     invalid: {
-      eyebrow: 'DESKBORN — SEED / DAY 2',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.3',
       title: 'Find a flatter surface',
       sub: 'The village can only be planted on a reasonably horizontal surface.',
     },
     ready: {
-      eyebrow: 'DESKBORN — SEED / DAY 2',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.3',
       title: 'Pinch / trigger to plant',
       sub: 'The green ring marks where the miniature world will grow.',
     },
@@ -228,6 +226,7 @@ function resetPlacement(): void {
   state.planted = false;
   state.growth = 0;
   state.requestPlant = false;
+  setCitizensActive(false);
   setPreviewChildrenVisible(true);
 
   if (state.village) {
@@ -256,6 +255,7 @@ class DeskbornPlacementSystem extends DeskbornPlacementSystemBase {
       const t = 1 - Math.pow(1 - state.growth, 3);
       state.village.scale.setScalar(Math.max(0.001, t));
       state.village.rotation.y = (1 - t) * -0.16;
+      if (state.growth >= 1) setCitizensActive(true);
     }
 
     if (state.planted) return;
@@ -370,7 +370,8 @@ World.create(sceneContainer, projectOptions).then((world) => {
   });
 
   const village = buildVillage();
-  root.add(village);
+  const villageEntity = world.createTransformEntity(village);
+  createCitizens(world, villageEntity);
 
   state.previewGroup = previewGroup;
   state.previewRing = ring;
@@ -380,6 +381,7 @@ World.create(sceneContainer, projectOptions).then((world) => {
   state.village = village;
 
   world.registerSystem(DeskbornPlacementSystem);
+  world.registerSystem(CitizenSystem);
   addHud();
 
   window.addEventListener('keydown', (event) => {
