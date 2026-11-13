@@ -19,7 +19,11 @@
     },
     "render": {
       "camera": {
-        "position": [0, 1, 0.5]
+        "position": [
+          0,
+          1,
+          0.5
+        ]
       }
     },
     "features": {
@@ -35,7 +39,7 @@
       "device": "metaQuest3",
       "environment": "sunlit_living_room",
       "activation": "always",
-      "injectOnBuild": true
+      "injectOnBuild": false
     }
   }
 }
