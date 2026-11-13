@@ -2,34 +2,30 @@
 
 A hands-first mixed-reality game for the Meta VR Start Developer Competition 2026.
 
-## Current build: 0.5 — XR-Native Presentation
+## Current build: 0.6 — Polish + Performance
 
-Build 0.5 keeps the verified interaction loop and moves the important onboarding and game-state communication into the XR world itself.
+Build 0.6 keeps the verified gameplay and improves what a judge immediately sees and feels.
 
-### Core loop
+### Added
 
-- Meta IWSDK / WebXR mixed reality
-- Surface hit-test and seed placement on a real tabletop
-- Miniature village growth
-- 8 autonomous citizens
-- Hand/controller ray hover
-- Pinch/select hold to grab, move and release citizens
-- Storm warning and citizen panic
-- Rain, clouds and darker storm lighting
-- Open-right-hand shield over the settlement
-- Desktop `H` fallback for shield verification
-- Saved and damaged outcomes
+- Richer miniature village with a stone path, central well and glowing crystals
+- Lightweight procedural audio for planting, grabbing, storm warning, storm start, success and failure
+- Stronger event feedback without external audio assets
+- Reduced storm geometry cost for Quest-friendly rendering
+- Citizen shadows disabled to remove unnecessary per-frame shadow work
+- Existing XR-native onboarding and result panels retained
 
-### New in build 0.5
+### Verified gameplay target
 
-- XR-native floating instruction panel beside the placement seed
-- In-world planting instructions visible after entering XR
-- In-world citizen interaction guidance
-- In-world storm warning
-- In-world shield/protection status
-- In-world **VILLAGE SAVED** and **VILLAGE DAMAGED** results
-- Color-coded neutral / action / success / danger states
-- Browser HUD retained as a desktop debugging companion
+- Surface placement
+- Seed planting
+- Village growth
+- Autonomous citizens
+- Citizen hover / grab / move / release
+- Storm warning and panic
+- Open-hand shield
+- VILLAGE SAVED / VILLAGE DAMAGED
+- Reset and replay
 
 ## Update and run
 
@@ -42,7 +38,7 @@ npm run build
 npm run dev
 ```
 
-After dependencies are installed and unchanged:
+After dependencies are unchanged:
 
 ```powershell
 cd C:\Users\dmano\Desktop\DESKBORN-LIVE
@@ -50,17 +46,15 @@ git pull
 npm run dev
 ```
 
-## Build 0.5 verification
+## Build 0.6 check
 
-1. Enter XR and confirm a floating **Aim at a surface** panel is visible with the seed.
-2. Aim at the coffee table; confirm it changes to **Pinch / trigger to plant**.
-3. Plant the village.
-4. Confirm the XR panel moves to the village experience and gives citizen guidance.
-5. Target/grab/release a citizen and confirm the in-world panel changes state.
-6. Wait for the storm and confirm the warning appears inside XR.
-7. During the storm, confirm protection/time status is visible inside XR.
-8. Hold `H` for desktop shield testing and confirm the in-world result says **VILLAGE SAVED**.
-9. Reset with `R`, let the storm pass unprotected, and confirm **VILLAGE DAMAGED**.
+1. Plant the village and confirm the new path, well and glowing crystals are visible.
+2. Confirm planting plays a short growth tone after browser audio is unlocked.
+3. Grab a citizen and confirm a subtle grab tone.
+4. Wait for the storm and confirm warning/start audio.
+5. Complete a protected run and confirm success audio + VILLAGE SAVED.
+6. Reset and fail the storm once to confirm failure audio + VILLAGE DAMAGED.
+7. Verify there are no new console errors.
 
 ## Stack
 
