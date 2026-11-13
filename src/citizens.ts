@@ -17,6 +17,7 @@ import {
   SphereGeometry,
   Vector3,
 } from 'three';
+import { setVillageXrUi } from './xr-ui.js';
 
 type CitizenRuntime = {
   seed: number;
@@ -161,6 +162,14 @@ function setHint(title: string, sub: string): void {
     <div class="title">${title}</div>
     <div class="sub">${sub}</div>
   `;
+
+  const tone =
+    title === 'You are holding a citizen'
+      ? 'good'
+      : title === 'Citizen targeted'
+        ? 'accent'
+        : 'neutral';
+  setVillageXrUi(title, sub, 'DESKBORN — LIVING VILLAGE', tone);
 }
 
 const CitizenSystemBase = createSystem({
