@@ -14,6 +14,12 @@ import {
 } from 'three';
 import { setCitizenPanic } from './citizens.js';
 import { setVillageXrUi } from './xr-ui.js';
+import {
+  playFailure,
+  playStormStart,
+  playStormWarning,
+  playSuccess,
+} from './audio.js';
 
 type StormPhase =
   | 'idle'
@@ -101,7 +107,7 @@ function createStormVisuals(village: Group): void {
   });
 
   for (let i = 0; i < 5; i += 1) {
-    const cloud = new Mesh(new SphereGeometry(0.13, 12, 8), cloudMaterial);
+    const cloud = new Mesh(new SphereGeometry(0.13, 8, 6), cloudMaterial);
     cloud.position.set(
       -0.22 + i * 0.11,
       0.52 + (i % 2) * 0.035,
@@ -117,7 +123,7 @@ function createStormVisuals(village: Group): void {
     opacity: 0.72,
   });
 
-  for (let i = 0; i < 22; i += 1) {
+  for (let i = 0; i < 16; i += 1) {
     const streak = new Mesh(
       new CylinderGeometry(0.002, 0.002, 0.075, 5),
       rainMaterial,
@@ -155,7 +161,7 @@ function createStormVisuals(village: Group): void {
     side: DoubleSide,
   });
   const dome = new Mesh(
-    new SphereGeometry(0.205, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+    new SphereGeometry(0.205, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
     domeMaterial,
   );
   dome.scale.y = 0.72;
@@ -238,6 +244,7 @@ export function resetStorm(): void {
 
 function beginWarning(): void {
   runtime.phase = 'warning';
+  playStormWarning();
   setCitizenPanic(true);
   hud(
     'Storm incoming',
@@ -249,6 +256,7 @@ function beginWarning(): void {
 
 function beginStorm(): void {
   runtime.phase = 'storm';
+  playStormStart();
   runtime.stormElapsed = 0;
   runtime.protectedSeconds = 0;
   runtime.hudBucket = -1;
@@ -273,6 +281,7 @@ function finishStorm(): void {
   setCitizenPanic(false);
 
   if (success) {
+    playSuccess();
     hud(
       'The village survived',
       `Shield coverage ${Math.round(ratio * 100)}%. Your hand became part of the world.`,
@@ -280,6 +289,7 @@ function finishStorm(): void {
       'good',
     );
   } else {
+    playFailure();
     hud(
       'The storm broke through',
       `Shield coverage ${Math.round(ratio * 100)}%. Reset and keep your open palm centered longer.`,
