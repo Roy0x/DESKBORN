@@ -26,10 +26,12 @@ type CitizenRuntime = {
   speed: number;
   wasGrabbed: boolean;
   elapsed: number;
+  panicSeen: boolean;
   materials: MeshStandardMaterial[];
 };
 
 let citizensActive = false;
+let panicMode = false;
 let lastHint = '';
 const direction = new Vector3();
 const desiredScale = new Vector3();
@@ -48,7 +50,9 @@ function nextTarget(runtime: CitizenRuntime): void {
   runtime.step += 1;
   const angle = runtime.seed * 1.618 + runtime.step * 2.399;
   const radiusNoise = ((runtime.seed * 41 + runtime.step * 17) % 100) / 100;
-  const radius = 0.08 + radiusNoise * 0.18;
+  const radius = panicMode
+    ? 0.035 + radiusNoise * 0.09
+    : 0.08 + radiusNoise * 0.18;
   runtime.targetX = Math.cos(angle) * radius;
   runtime.targetZ = Math.sin(angle) * radius;
 }
@@ -99,6 +103,7 @@ function citizenModel(
     speed: 0.035 + (seed % 4) * 0.005,
     wasGrabbed: false,
     elapsed: seed * 0.31,
+    panicSeen: false,
     materials: [bodyMaterial, headMaterial],
   };
   nextTarget(runtime);
@@ -110,6 +115,11 @@ function citizenModel(
 export function setCitizensActive(active: boolean): void {
   citizensActive = active;
   if (!active) lastHint = '';
+}
+
+export function setCitizenPanic(active: boolean): void {
+  panicMode = active;
+  if (active) lastHint = '';
 }
 
 export function createCitizens(world: World, parent: Entity): void {
@@ -178,6 +188,11 @@ export class CitizenSystem extends CitizenSystemBase {
 
       runtime.elapsed += delta;
 
+      if (runtime.panicSeen !== panicMode) {
+        runtime.panicSeen = panicMode;
+        nextTarget(runtime);
+      }
+
       const grabbed = entity.hasComponent(Grabbed);
       const hovered = entity.hasComponent(Hovered);
       anyGrabbed ||= grabbed;
@@ -191,9 +206,13 @@ export class CitizenSystem extends CitizenSystemBase {
         ? 1.1
         : hovered
           ? 0.28 + 0.72 * pinchStrength
-          : 0;
+          : panicMode
+            ? 0.12
+            : 0;
       for (const material of runtime.materials) {
-        material.emissive.setHex(glow > 0 ? 0x36511f : 0x000000);
+        material.emissive.setHex(
+          glow > 0 ? (panicMode ? 0x6d2b18 : 0x36511f) : 0x000000,
+        );
         material.emissiveIntensity +=
           (glow - material.emissiveIntensity) * Math.min(1, delta * 12);
       }
@@ -215,7 +234,7 @@ export class CitizenSystem extends CitizenSystemBase {
         nextTarget(runtime);
       }
 
-      if (hovered) continue;
+      if (hovered && !panicMode) continue;
 
       direction.set(
         runtime.targetX - object.position.x,
@@ -228,13 +247,19 @@ export class CitizenSystem extends CitizenSystemBase {
         nextTarget(runtime);
       } else {
         direction.normalize();
-        object.position.addScaledVector(direction, runtime.speed * delta);
+        const speed = runtime.speed * (panicMode ? 2.45 : 1);
+        object.position.addScaledVector(direction, speed * delta);
         object.position.y = 0;
         object.rotation.y = Math.atan2(direction.x, direction.z);
       }
 
-      object.rotation.z = Math.sin(runtime.elapsed * 7 + runtime.seed) * 0.025;
+      const sway = panicMode ? 0.065 : 0.025;
+      const frequency = panicMode ? 12 : 7;
+      object.rotation.z =
+        Math.sin(runtime.elapsed * frequency + runtime.seed) * sway;
     }
+
+    if (panicMode) return;
 
     if (anyGrabbed) {
       setHint(
