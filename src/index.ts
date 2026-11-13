@@ -14,6 +14,13 @@ import {
   setTestShield,
 } from './storm.js';
 import {
+  configureXrUi,
+  hidePlacementXrUi,
+  hideVillageXrUi,
+  setPlacementXrUi,
+  setVillageXrUi,
+} from './xr-ui.js';
+import {
   AmbientLight,
   BoxGeometry,
   ConeGeometry,
@@ -165,17 +172,17 @@ function setHud(mode: 'scan' | 'invalid' | 'ready' | 'planted'): void {
 
   const content = {
     scan: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.4',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.5',
       title: 'Aim at a surface',
       sub: 'Point the right-hand ray at a tabletop or other horizontal surface.',
     },
     invalid: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.4',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.5',
       title: 'Find a flatter surface',
       sub: 'The village can only be planted on a reasonably horizontal surface.',
     },
     ready: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.4',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.5',
       title: 'Pinch / trigger to plant',
       sub: 'The green ring marks where the miniature world will grow.',
     },
@@ -191,6 +198,22 @@ function setHud(mode: 'scan' | 'invalid' | 'ready' | 'planted'): void {
     <div class="title">${content.title}</div>
     <div class="sub">${content.sub}</div>
   `;
+
+  if (mode === 'scan') {
+    setPlacementXrUi(content.title, content.sub, content.eyebrow, 'neutral');
+  } else if (mode === 'invalid') {
+    setPlacementXrUi(content.title, content.sub, content.eyebrow, 'danger');
+  } else if (mode === 'ready') {
+    setPlacementXrUi(content.title, content.sub, content.eyebrow, 'accent');
+  } else {
+    hidePlacementXrUi();
+    setVillageXrUi(
+      'A tiny world took root',
+      'Aim at a citizen and pinch / hold to pick them up.',
+      'DESKBORN — LIVING VILLAGE',
+      'accent',
+    );
+  }
 }
 
 function addHud(): void {
@@ -235,6 +258,7 @@ function resetPlacement(): void {
   state.requestPlant = false;
   setCitizensActive(false);
   resetStorm();
+  hideVillageXrUi();
   setPreviewChildrenVisible(true);
 
   if (state.village) {
@@ -384,6 +408,7 @@ World.create(sceneContainer, projectOptions).then((world) => {
   const villageEntity = world.createTransformEntity(village);
   createCitizens(world, villageEntity);
   configureStorm(village, ambient, sun);
+  configureXrUi(previewGroup, village);
 
   state.previewGroup = previewGroup;
   state.previewRing = ring;
