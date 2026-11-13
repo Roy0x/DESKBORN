@@ -2,55 +2,65 @@
 
 A hands-first mixed-reality game for the Meta VR Start Developer Competition 2026.
 
-## Current build: 0.4 — Storm + Open-Palm Shield
+## Current build: 0.5 — XR-Native Presentation
 
-The core five-minute loop now includes a dramatic hand-driven event:
+Build 0.5 keeps the verified interaction loop and moves the important onboarding and game-state communication into the XR world itself.
 
-- Mixed-reality surface placement with IWSDK environment raycast
-- Seed planting and miniature village growth
-- 8 autonomous citizens with hover, pinch/hold grab, move and release
-- Citizens panic and run toward the village center when danger arrives
-- Storm clouds, rain streaks and darker lighting
-- Real open-hand protection using tracked right-hand position + pinch strength
-- A glowing shield follows the open hand above the village
-- Protection is scored by keeping the shield centered during the storm
-- Clear village-saved / village-damaged result state
-- Lightweight procedural visuals designed for Quest performance
+### Core loop
 
-## Run
+- Meta IWSDK / WebXR mixed reality
+- Surface hit-test and seed placement on a real tabletop
+- Miniature village growth
+- 8 autonomous citizens
+- Hand/controller ray hover
+- Pinch/select hold to grab, move and release citizens
+- Storm warning and citizen panic
+- Rain, clouds and darker storm lighting
+- Open-right-hand shield over the settlement
+- Desktop `H` fallback for shield verification
+- Saved and damaged outcomes
+
+### New in build 0.5
+
+- XR-native floating instruction panel beside the placement seed
+- In-world planting instructions visible after entering XR
+- In-world citizen interaction guidance
+- In-world storm warning
+- In-world shield/protection status
+- In-world **VILLAGE SAVED** and **VILLAGE DAMAGED** results
+- Color-coded neutral / action / success / danger states
+- Browser HUD retained as a desktop debugging companion
+
+## Update and run
 
 ```powershell
-cd C:\Users\dmano\Downloads\DESKBORN
+cd C:\Users\dmano\Desktop\DESKBORN-LIVE
 git pull
 npm install
+npm run typecheck
+npm run build
 npm run dev
 ```
 
-If dependencies are already installed, future runs only need:
+After dependencies are installed and unchanged:
 
 ```powershell
+cd C:\Users\dmano\Desktop\DESKBORN-LIVE
 git pull
 npm run dev
 ```
 
-## Test sequence
+## Build 0.5 verification
 
-1. Place the seed on the coffee table.
-2. Wait for the miniature village to finish growing.
-3. Confirm citizens walk and remain grabbable.
-4. After about 6 seconds, the storm warning begins and citizens panic.
-5. About 2.5 seconds later, rain starts.
-6. Switch/use the right tracked hand and hold an **open palm** above the village center.
-7. A cyan/green shield should appear beneath the hand.
-8. Keep the palm centered for at least half of the 10-second storm.
-9. Verify the result says **VILLAGE SAVED**.
-10. Reset with `R` and allow the storm to pass without shielding; verify **VILLAGE DAMAGED**.
-
-### Emulator fallback
-
-For quick desktop verification only, hold the `H` key during the storm to simulate a perfectly centered open-palm shield. This is a test fallback; the real gameplay path uses tracked hand position and open-hand state.
-
-Press `R` to reset the whole experience.
+1. Enter XR and confirm a floating **Aim at a surface** panel is visible with the seed.
+2. Aim at the coffee table; confirm it changes to **Pinch / trigger to plant**.
+3. Plant the village.
+4. Confirm the XR panel moves to the village experience and gives citizen guidance.
+5. Target/grab/release a citizen and confirm the in-world panel changes state.
+6. Wait for the storm and confirm the warning appears inside XR.
+7. During the storm, confirm protection/time status is visible inside XR.
+8. Hold `H` for desktop shield testing and confirm the in-world result says **VILLAGE SAVED**.
+9. Reset with `R`, let the storm pass unprotected, and confirm **VILLAGE DAMAGED**.
 
 ## Stack
 
