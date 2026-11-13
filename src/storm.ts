@@ -47,8 +47,8 @@ type StormRuntime = {
   hudBucket: number;
 };
 
-const CALM_SECONDS = 6;
-const WARNING_SECONDS = 2.5;
+const CALM_SECONDS = 10;
+const WARNING_SECONDS = 3;
 const STORM_SECONDS = 10;
 const SUCCESS_RATIO = 0.5;
 
