@@ -13,6 +13,7 @@ import {
   Vector3,
 } from 'three';
 import { setCitizenPanic } from './citizens.js';
+import { setVillageXrUi } from './xr-ui.js';
 
 type StormPhase =
   | 'idle'
@@ -70,6 +71,7 @@ function hud(
   title: string,
   sub: string,
   eyebrow = 'DESKBORN — STORM EVENT',
+  tone: 'neutral' | 'accent' | 'good' | 'danger' = 'neutral',
 ): void {
   const node = document.getElementById('deskborn-hud');
   if (!node) return;
@@ -78,6 +80,7 @@ function hud(
     <div class="title">${title}</div>
     <div class="sub">${sub}</div>
   `;
+  setVillageXrUi(title, sub, eyebrow, tone);
 }
 
 function setLighting(storm: boolean): void {
@@ -239,6 +242,8 @@ function beginWarning(): void {
   hud(
     'Storm incoming',
     'The citizens are panicking. Get your open palm ready above the village.',
+    'DESKBORN — STORM WARNING',
+    'danger',
   );
 }
 
@@ -252,6 +257,8 @@ function beginStorm(): void {
   hud(
     'Protect the village',
     'Hold an OPEN hand above the settlement. Keep the glowing shield over its center.',
+    'DESKBORN — STORM EVENT',
+    'danger',
   );
 }
 
@@ -270,12 +277,14 @@ function finishStorm(): void {
       'The village survived',
       `Shield coverage ${Math.round(ratio * 100)}%. Your hand became part of the world.`,
       'DESKBORN — VILLAGE SAVED',
+      'good',
     );
   } else {
     hud(
       'The storm broke through',
       `Shield coverage ${Math.round(ratio * 100)}%. Reset and keep your open palm centered longer.`,
       'DESKBORN — VILLAGE DAMAGED',
+      'danger',
     );
   }
 }
@@ -392,6 +401,8 @@ export class StormSystem extends StormSystemBase {
           0,
           Math.ceil(STORM_SECONDS - runtime.stormElapsed),
         )}s remaining`,
+        'DESKBORN — PROTECT',
+        protectedNow ? 'good' : 'danger',
       );
     }
 
