@@ -2,32 +2,26 @@
 
 A hands-first mixed-reality game for the Meta VR Start Developer Competition 2026.
 
-## Current build: 0.6 — Polish + Performance
+## Build 0.7 — Submission Candidate
 
-Build 0.6 keeps the verified gameplay and improves what a judge immediately sees and feels.
+This build freezes gameplay scope and focuses on a clean judge path plus production deployment.
 
-### Added
+### Experience
 
-- Richer miniature village with a stone path, central well and glowing crystals
-- Lightweight procedural audio for planting, grabbing, storm warning, storm start, success and failure
-- Stronger event feedback without external audio assets
-- Reduced storm geometry cost for Quest-friendly rendering
-- Citizen shadows disabled to remove unnecessary per-frame shadow work
-- Existing XR-native onboarding and result panels retained
+- Place a glowing seed on a real tabletop
+- Watch a miniature civilization grow
+- Interact with citizens using pinch/select hold
+- React to a storm warning
+- Protect the village with an open hand
+- Reach a clear VILLAGE SAVED or VILLAGE DAMAGED ending
+- XR-native onboarding and status panels
+- Procedural audio and lightweight Quest-friendly visuals
 
-### Verified gameplay target
+### Submission timing
 
-- Surface placement
-- Seed planting
-- Village growth
-- Autonomous citizens
-- Citizen hover / grab / move / release
-- Storm warning and panic
-- Open-hand shield
-- VILLAGE SAVED / VILLAGE DAMAGED
-- Reset and replay
+The calm phase is intentionally longer in 0.7 so a first-time judge has time to discover and grab a citizen before the storm begins.
 
-## Update and run
+## Local run
 
 ```powershell
 cd C:\Users\dmano\Desktop\DESKBORN-LIVE
@@ -38,23 +32,42 @@ npm run build
 npm run dev
 ```
 
-After dependencies are unchanged:
+## Production build
+
+The IWSDK emulator remains available during development, but `injectOnBuild` is disabled so production builds do not bundle the development emulator environments.
 
 ```powershell
-cd C:\Users\dmano\Desktop\DESKBORN-LIVE
-git pull
-npm run dev
+npm run typecheck
+npm run build
 ```
 
-## Build 0.6 check
+The static production output is written to `dist/`.
 
-1. Plant the village and confirm the new path, well and glowing crystals are visible.
-2. Confirm planting plays a short growth tone after browser audio is unlocked.
-3. Grab a citizen and confirm a subtle grab tone.
-4. Wait for the storm and confirm warning/start audio.
-5. Complete a protected run and confirm success audio + VILLAGE SAVED.
-6. Reset and fail the storm once to confirm failure audio + VILLAGE DAMAGED.
-7. Verify there are no new console errors.
+## Public deployment
+
+A GitHub Pages workflow is included in:
+
+`.github/workflows/deploy-pages.yml`
+
+After GitHub Pages is configured to use **GitHub Actions**, every push to `main` builds, typechecks and deploys `dist/`.
+
+Expected project URL:
+
+`https://roy0x.github.io/DESKBORN/`
+
+Do not use that URL in the hackathon submission until the workflow has completed successfully and the XR experience has been tested from the public URL.
+
+## Final acceptance test
+
+1. Open the public HTTPS URL.
+2. Enter XR.
+3. Place the village on a horizontal surface.
+4. Grab and release one citizen.
+5. Confirm storm warning appears.
+6. Complete a protected run and verify VILLAGE SAVED.
+7. Reload/reset and verify VILLAGE DAMAGED without protection.
+8. Confirm no missing assets or major console errors.
+9. Record the final demo from this frozen build.
 
 ## Stack
 
