@@ -7,6 +7,13 @@ import {
 import projectOptions from 'virtual:iwsdk-project';
 import { CitizenSystem, createCitizens, setCitizensActive } from './citizens.js';
 import {
+  StormSystem,
+  configureStorm,
+  resetStorm,
+  setStormReady,
+  setTestShield,
+} from './storm.js';
+import {
   AmbientLight,
   BoxGeometry,
   ConeGeometry,
@@ -158,17 +165,17 @@ function setHud(mode: 'scan' | 'invalid' | 'ready' | 'planted'): void {
 
   const content = {
     scan: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.3',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.4',
       title: 'Aim at a surface',
       sub: 'Point the right-hand ray at a tabletop or other horizontal surface.',
     },
     invalid: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.3',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.4',
       title: 'Find a flatter surface',
       sub: 'The village can only be planted on a reasonably horizontal surface.',
     },
     ready: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.3',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.4',
       title: 'Pinch / trigger to plant',
       sub: 'The green ring marks where the miniature world will grow.',
     },
@@ -196,7 +203,7 @@ function addHud(): void {
     #deskborn-hud {
       position: fixed;
       left: 22px;
-      bottom: 22px;
+      top: 22px;
       z-index: 20;
       max-width: 420px;
       padding: 14px 16px;
@@ -227,6 +234,7 @@ function resetPlacement(): void {
   state.growth = 0;
   state.requestPlant = false;
   setCitizensActive(false);
+  resetStorm();
   setPreviewChildrenVisible(true);
 
   if (state.village) {
@@ -255,7 +263,10 @@ class DeskbornPlacementSystem extends DeskbornPlacementSystemBase {
       const t = 1 - Math.pow(1 - state.growth, 3);
       state.village.scale.setScalar(Math.max(0.001, t));
       state.village.rotation.y = (1 - t) * -0.16;
-      if (state.growth >= 1) setCitizensActive(true);
+      if (state.growth >= 1) {
+        setCitizensActive(true);
+        setStormReady(true);
+      }
     }
 
     if (state.planted) return;
@@ -372,6 +383,7 @@ World.create(sceneContainer, projectOptions).then((world) => {
   const village = buildVillage();
   const villageEntity = world.createTransformEntity(village);
   createCitizens(world, villageEntity);
+  configureStorm(village, ambient, sun);
 
   state.previewGroup = previewGroup;
   state.previewRing = ring;
@@ -382,6 +394,7 @@ World.create(sceneContainer, projectOptions).then((world) => {
 
   world.registerSystem(DeskbornPlacementSystem);
   world.registerSystem(CitizenSystem);
+  world.registerSystem(StormSystem);
   addHud();
 
   window.addEventListener('keydown', (event) => {
@@ -390,6 +403,14 @@ World.create(sceneContainer, projectOptions).then((world) => {
       event.preventDefault();
     } else if (event.key.toLowerCase() === 'r') {
       resetPlacement();
+    } else if (event.key.toLowerCase() === 'h') {
+      setTestShield(true);
+    }
+  });
+
+  window.addEventListener('keyup', (event) => {
+    if (event.key.toLowerCase() === 'h') {
+      setTestShield(false);
     }
   });
 });
