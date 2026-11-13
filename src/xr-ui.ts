@@ -139,7 +139,6 @@ function paint(
 
   context.fillStyle = palette.accent;
   context.font = '700 25px system-ui, -apple-system, Segoe UI, sans-serif';
-  context.letterSpacing = '3px';
   context.fillText(eyebrow.toUpperCase(), 98, 118);
 
   context.fillStyle = '#FFF9ED';
