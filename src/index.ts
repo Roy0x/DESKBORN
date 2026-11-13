@@ -327,22 +327,58 @@ function addXrLauncher(world: World): void {
     return;
   }
 
-  button.addEventListener('click', () => {
+  const checkSupport = async (): Promise<boolean> => {
+    const xr = navigator.xr;
+    if (!xr) {
+      button.disabled = true;
+      button.textContent = 'XR NOT AVAILABLE';
+      status.textContent =
+        'Desktop browser detected without WebXR. Use npm run dev for the IWSDK emulator, or open this URL in Meta Quest Browser.';
+      return false;
+    }
+
+    try {
+      const supported = await xr.isSessionSupported('immersive-ar');
+      if (!supported) {
+        button.disabled = true;
+        button.textContent = 'XR NOT AVAILABLE';
+        status.textContent =
+          'Immersive AR is not supported on this device/browser. Use the local IWSDK emulator on desktop or Meta Quest Browser for the public build.';
+        return false;
+      }
+
+      button.disabled = false;
+      button.textContent = 'ENTER XR';
+      status.textContent = 'Immersive AR supported. Ready to enter XR.';
+      return true;
+    } catch (error: unknown) {
+      button.disabled = true;
+      button.textContent = 'XR CHECK FAILED';
+      const message = error instanceof Error ? error.message : String(error);
+      status.textContent = 'Could not verify WebXR support: ' + message;
+      return false;
+    }
+  };
+
+  void checkSupport();
+
+  button.addEventListener('click', async () => {
+    if (!(await checkSupport())) return;
+
     unlockAudio();
     button.disabled = true;
     status.textContent = 'Requesting immersive AR…';
 
-    Promise.resolve(world.launchXR())
-      .then(() => {
-        status.textContent = 'XR session active.';
-      })
-      .catch((error: unknown) => {
-        button.disabled = false;
-        const message = error instanceof Error ? error.message : String(error);
-        status.textContent =
-          'XR could not start here. Open this HTTPS page in Meta Quest Browser. ' +
-          message;
-      });
+    try {
+      await world.launchXR();
+      status.textContent = 'XR session active.';
+    } catch (error: unknown) {
+      button.disabled = false;
+      const message = error instanceof Error ? error.message : String(error);
+      status.textContent =
+        'XR could not start. Open this HTTPS page in Meta Quest Browser. ' +
+        message;
+    }
   });
 }
 
