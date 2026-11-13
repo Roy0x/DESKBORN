@@ -2,7 +2,7 @@
 
 A hands-first mixed-reality game for the Meta VR Start Developer Competition 2026.
 
-## Build 0.7 — Submission Candidate
+## Build 0.8 — Submission Candidate
 
 This build freezes gameplay scope and focuses on a clean judge path plus production deployment.
 
