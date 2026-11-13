@@ -228,17 +228,17 @@ function setHud(mode: 'scan' | 'invalid' | 'ready' | 'planted'): void {
 
   const content = {
     scan: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.7',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.8',
       title: 'Aim at a surface',
       sub: 'Point the right-hand ray at a tabletop or other horizontal surface.',
     },
     invalid: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.7',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.8',
       title: 'Find a flatter surface',
       sub: 'The village can only be planted on a reasonably horizontal surface.',
     },
     ready: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.7',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.8',
       title: 'Pinch / trigger to plant',
       sub: 'The green ring marks where the miniature world will grow.',
     },
