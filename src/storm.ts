@@ -319,9 +319,9 @@ function finishStorm(): void {
   if (success) {
     playSuccess();
     hud(
-      'The village survived',
-      `Shield coverage ${Math.round(ratio * 100)}%. Your hand became part of the world.`,
-      'DESKBORN — VILLAGE SAVED',
+      'VILLAGE SAVED',
+      `The village survived · Shield coverage ${Math.round(ratio * 100)}% · Citizens are celebrating.`,
+      'DESKBORN — SUCCESS',
       'good',
     );
   } else {
