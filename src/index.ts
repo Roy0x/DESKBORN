@@ -48,6 +48,7 @@ type DeskbornState = {
   requestPlant: boolean;
   lastHudMode: string;
   noSurfaceElapsed: number;
+  fallbackAvailable: boolean;
   fallbackUsed: boolean;
 };
 
@@ -64,6 +65,7 @@ const state: DeskbornState = {
   requestPlant: false,
   lastHudMode: '',
   noSurfaceElapsed: 0,
+  fallbackAvailable: false,
   fallbackUsed: false,
 };
 
@@ -236,17 +238,17 @@ function setHud(mode: 'scan' | 'invalid' | 'ready' | 'planted'): void {
 
   const content = {
     scan: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.9',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.10',
       title: 'Aim at a surface',
       sub: 'Look at a tabletop or other horizontal surface, then pinch with either hand.',
     },
     invalid: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.9',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.10',
       title: 'Find a flatter surface',
       sub: 'The village can only be planted on a reasonably horizontal surface.',
     },
     ready: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.9',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.10',
       title: 'Pinch / trigger to plant',
       sub: 'The green ring marks where the miniature world will grow.',
     },
@@ -431,6 +433,7 @@ function resetPlacement(): void {
   state.growth = 0;
   state.requestPlant = false;
   state.noSurfaceElapsed = 0;
+  state.fallbackAvailable = false;
   state.fallbackUsed = false;
   setCitizensActive(false);
   resetStorm();
@@ -495,7 +498,7 @@ class DeskbornPlacementSystem extends DeskbornPlacementSystemBase {
       hud.innerHTML = `
         <div class="eyebrow">DESKBORN — SURFACE FALLBACK</div>
         <div class="title">Village placed in front of you</div>
-        <div class="sub">No usable tabletop was detected after 8 seconds. Continue normally.</div>
+        <div class="sub">You chose the safe front placement. Continue normally.</div>
       `;
     }
   }
@@ -545,26 +548,47 @@ class DeskbornPlacementSystem extends DeskbornPlacementSystemBase {
       state.seedMaterial?.emissive.setHex(valid ? 0x72a621 : 0x8a351e);
     });
 
-    setHud(!hasHit ? 'scan' : !hasValidHorizontalHit ? 'invalid' : 'ready');
-
     const immersive =
       this.visibilityState.peek() === 'visible' ||
       this.visibilityState.peek() === 'visible-blurred';
 
-    if (immersive && !hasValidHorizontalHit) {
+    if (immersive && !hasValidHorizontalHit && !state.fallbackAvailable) {
       state.noSurfaceElapsed += delta;
       if (state.noSurfaceElapsed >= FALLBACK_SECONDS) {
-        this.plantFallback();
-        return;
+        state.fallbackAvailable = true;
       }
-    } else if (hasValidHorizontalHit) {
-      state.noSurfaceElapsed = 0;
+    }
+
+    if (state.fallbackAvailable && !hasValidHorizontalHit) {
+      const hud = document.getElementById('deskborn-hud');
+      if (hud) {
+        hud.innerHTML = `
+          <div class="eyebrow">DESKBORN — OPTIONAL FALLBACK</div>
+          <div class="title">Still looking for a surface?</div>
+          <div class="sub">Keep looking as long as you want, or pinch with either hand now to place the village in front of you.</div>
+        `;
+      }
+      setPlacementXrUi(
+        'Place in front of me',
+        'Keep looking for a tabletop, or pinch with either hand now to use the safe front placement.',
+        'DESKBORN — OPTIONAL FALLBACK',
+        'accent',
+      );
+    } else {
+      setHud(!hasHit ? 'scan' : !hasValidHorizontalHit ? 'invalid' : 'ready');
     }
 
     const rightSelect = this.input.gamepads.right?.getSelectStart() ?? false;
     const leftSelect = this.input.gamepads.left?.getSelectStart() ?? false;
-    if (!(rightSelect || leftSelect || state.requestPlant)) return;
+    const requestedPlant = rightSelect || leftSelect || state.requestPlant;
     state.requestPlant = false;
+
+    if (!requestedPlant) return;
+
+    if (state.fallbackAvailable && !hasValidHorizontalHit) {
+      this.plantFallback();
+      return;
+    }
 
     this.queries.raycastTargets.entities.forEach((entity) => {
       if (state.planted) return;
