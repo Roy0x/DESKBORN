@@ -1,6 +1,8 @@
 import {
   EnvironmentRaycastTarget,
   InputComponent,
+  Pressed,
+  RayInteractable,
   RaycastSpace,
   World,
   createSystem,
@@ -53,6 +55,8 @@ type DeskbornState = {
   fallbackUsed: boolean;
   leftPinchDown: boolean;
   rightPinchDown: boolean;
+  leftTriggerDown: boolean;
+  rightTriggerDown: boolean;
 };
 
 const state: DeskbornState = {
@@ -72,6 +76,8 @@ const state: DeskbornState = {
   fallbackUsed: false,
   leftPinchDown: false,
   rightPinchDown: false,
+  leftTriggerDown: false,
+  rightTriggerDown: false,
 };
 
 const WORLD_UP = new Vector3(0, 1, 0);
@@ -243,19 +249,19 @@ function setHud(mode: 'scan' | 'invalid' | 'ready' | 'planted'): void {
 
   const content = {
     scan: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.11',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.12',
       title: 'Aim at a surface',
       sub: 'Look at a tabletop or other horizontal surface, then pinch with either hand.',
     },
     invalid: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.11',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.12',
       title: 'Find a flatter surface',
       sub: 'The village can only be planted on a reasonably horizontal surface.',
     },
     ready: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.11',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.12',
       title: 'Trigger / pinch to plant',
-      sub: 'The green ring marks where the miniature world will grow.',
+      sub: 'Aim either controller at the green ring and press trigger, or pinch with either hand.',
     },
     planted: {
       eyebrow: 'DESKBORN — SEED',
@@ -442,6 +448,8 @@ function resetPlacement(): void {
   state.fallbackUsed = false;
   state.leftPinchDown = false;
   state.rightPinchDown = false;
+  state.leftTriggerDown = false;
+  state.rightTriggerDown = false;
   setCitizensActive(false);
   resetStorm();
   hideVillageXrUi();
@@ -455,7 +463,7 @@ function resetPlacement(): void {
 }
 
 const DeskbornPlacementSystemBase = createSystem({
-  raycastTargets: { required: [EnvironmentRaycastTarget] },
+  raycastTargets: { required: [EnvironmentRaycastTarget, RayInteractable] },
 });
 
 class DeskbornPlacementSystem extends DeskbornPlacementSystemBase {
@@ -588,14 +596,23 @@ class DeskbornPlacementSystem extends DeskbornPlacementSystemBase {
     const rightGamepad = this.input.xr.gamepads.right;
     const leftGamepad = this.input.xr.gamepads.left;
 
-    const rightTrigger =
-      rightGamepad?.getButtonDown(InputComponent.Trigger) ??
-      rightGamepad?.getSelectStart() ??
+    const rightTriggerNow =
+      rightGamepad?.getButtonPressed(InputComponent.Trigger) ??
+      rightGamepad?.getSelecting() ??
       false;
-    const leftTrigger =
-      leftGamepad?.getButtonDown(InputComponent.Trigger) ??
-      leftGamepad?.getSelectStart() ??
+    const leftTriggerNow =
+      leftGamepad?.getButtonPressed(InputComponent.Trigger) ??
+      leftGamepad?.getSelecting() ??
       false;
+    const rightTriggerStart = rightTriggerNow && !state.rightTriggerDown;
+    const leftTriggerStart = leftTriggerNow && !state.leftTriggerDown;
+    state.rightTriggerDown = rightTriggerNow;
+    state.leftTriggerDown = leftTriggerNow;
+
+    let reticlePressed = false;
+    this.queries.raycastTargets.entities.forEach((entity) => {
+      reticlePressed ||= entity.hasComponent(Pressed);
+    });
 
     const leftHand = this.input.xr.visualAdapters.hand.left;
     const rightHand = this.input.xr.visualAdapters.hand.right;
@@ -607,8 +624,9 @@ class DeskbornPlacementSystem extends DeskbornPlacementSystemBase {
     state.rightPinchDown = rightPinchNow;
 
     const requestedPlant =
-      rightTrigger ||
-      leftTrigger ||
+      reticlePressed ||
+      rightTriggerStart ||
+      leftTriggerStart ||
       leftPinchStart ||
       rightPinchStart ||
       state.requestPlant;
@@ -695,11 +713,23 @@ World.create(sceneContainer, projectOptions).then((world) => {
   previewSeed.castShadow = true;
   previewGroup.add(previewSeed);
 
+  const previewHitArea = new Mesh(
+    new CylinderGeometry(0.13, 0.13, 0.012, 24),
+    new MeshStandardMaterial({
+      transparent: true,
+      opacity: 0.001,
+      depthWrite: false,
+    }),
+  );
+  previewHitArea.position.y = 0.008;
+  previewGroup.add(previewHitArea);
+
   const previewEntity = world.createTransformEntity(previewGroup);
   previewEntity.addComponent(EnvironmentRaycastTarget, {
     space: RaycastSpace.Viewer,
     maxDistance: 4,
   });
+  previewEntity.addComponent(RayInteractable);
 
   const village = buildVillage();
   const villageEntity = world.createTransformEntity(village);
