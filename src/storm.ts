@@ -12,7 +12,7 @@ import {
   SphereGeometry,
   Vector3,
 } from 'three';
-import { setCitizenCelebration, setCitizenPanic } from './citizens.js';
+import { setCitizenPanic } from './citizens.js';
 import { setVillageXrUi } from './xr-ui.js';
 import {
   playFailure,
@@ -35,7 +35,6 @@ type StormRuntime = {
   shieldGroup: Group | null;
   shieldRingMaterial: MeshBasicMaterial | null;
   shieldDomeMaterial: MeshBasicMaterial | null;
-  lightningMaterial: MeshBasicMaterial | null;
   damageGroup: Group | null;
   ambient: AmbientLight | null;
   sun: DirectionalLight | null;
@@ -59,7 +58,6 @@ const runtime: StormRuntime = {
   shieldGroup: null,
   shieldRingMaterial: null,
   shieldDomeMaterial: null,
-  lightningMaterial: null,
   damageGroup: null,
   ambient: null,
   sun: null,
@@ -140,20 +138,6 @@ function createStormVisuals(village: Group): void {
     storm.add(streak);
   }
 
-  const lightningMaterial = new MeshBasicMaterial({
-    color: 0xe9f7ff,
-    transparent: true,
-    opacity: 0,
-    depthWrite: false,
-  });
-  const lightning = new Mesh(
-    new CylinderGeometry(0.004, 0.009, 0.48, 5),
-    lightningMaterial,
-  );
-  lightning.position.set(0.16, 0.29, -0.08);
-  lightning.rotation.z = -0.12;
-  storm.add(lightning);
-
   const shield = new Group();
   shield.visible = false;
 
@@ -184,21 +168,6 @@ function createStormVisuals(village: Group): void {
   dome.position.y = 0.015;
   shield.add(dome);
 
-  const sparkMaterial = new MeshBasicMaterial({
-    color: 0xc9ff8f,
-    transparent: true,
-    opacity: 0.9,
-    depthWrite: false,
-  });
-  for (let i = 0; i < 9; i += 1) {
-    const spark = new Mesh(new SphereGeometry(0.007, 6, 4), sparkMaterial);
-    const angle = (i / 9) * Math.PI * 2;
-    spark.position.set(Math.cos(angle) * 0.205, 0.04, Math.sin(angle) * 0.205);
-    spark.userData.deskbornShieldSpark = true;
-    spark.userData.baseAngle = angle;
-    shield.add(spark);
-  }
-
   const damage = new Group();
   damage.visible = false;
   const scorchMaterial = new MeshBasicMaterial({
@@ -226,7 +195,6 @@ function createStormVisuals(village: Group): void {
   runtime.shieldGroup = shield;
   runtime.shieldRingMaterial = ringMaterial;
   runtime.shieldDomeMaterial = domeMaterial;
-  runtime.lightningMaterial = lightningMaterial;
   runtime.damageGroup = damage;
 }
 
@@ -270,7 +238,6 @@ export function resetStorm(): void {
   if (runtime.stormGroup) runtime.stormGroup.visible = false;
   if (runtime.shieldGroup) runtime.shieldGroup.visible = false;
   if (runtime.damageGroup) runtime.damageGroup.visible = false;
-  setCitizenCelebration(false);
   setCitizenPanic(false);
   setLighting(false);
 }
@@ -278,7 +245,6 @@ export function resetStorm(): void {
 function beginWarning(): void {
   runtime.phase = 'warning';
   playStormWarning();
-  setCitizenCelebration(false);
   setCitizenPanic(true);
   hud(
     'Storm incoming',
@@ -291,7 +257,6 @@ function beginWarning(): void {
 function beginStorm(): void {
   runtime.phase = 'storm';
   playStormStart();
-  setCitizenCelebration(false);
   runtime.stormElapsed = 0;
   runtime.protectedSeconds = 0;
   runtime.hudBucket = -1;
@@ -299,7 +264,7 @@ function beginStorm(): void {
   setLighting(true);
   hud(
     'Protect the village',
-    'Hold either OPEN hand above the settlement. Keep the glowing shield over its center.',
+    'Hold an OPEN hand above the settlement. Keep the glowing shield over its center.',
     'DESKBORN — STORM EVENT',
     'danger',
   );
@@ -314,14 +279,13 @@ function finishStorm(): void {
   if (runtime.damageGroup) runtime.damageGroup.visible = !success;
   setLighting(false);
   setCitizenPanic(false);
-  setCitizenCelebration(success);
 
   if (success) {
     playSuccess();
     hud(
-      'VILLAGE SAVED',
-      `The village survived · Shield coverage ${Math.round(ratio * 100)}% · Citizens are celebrating.`,
-      'DESKBORN — SUCCESS',
+      'The village survived',
+      `Shield coverage ${Math.round(ratio * 100)}%. Your hand became part of the world.`,
+      'DESKBORN — VILLAGE SAVED',
       'good',
     );
   } else {
@@ -347,28 +311,13 @@ function animateStorm(delta: number): void {
       child.position.x -= 0.15;
     }
   }
-
-  if (runtime.lightningMaterial) {
-    const flashSignal =
-      Math.sin(runtime.stormElapsed * 8.3) +
-      Math.sin(runtime.stormElapsed * 17.7);
-    runtime.lightningMaterial.opacity = flashSignal > 1.45 ? 0.92 : 0;
-    if (runtime.ambient && runtime.sun) {
-      const flash = runtime.lightningMaterial.opacity > 0;
-      runtime.ambient.intensity = flash ? 0.78 : 0.48;
-      runtime.sun.intensity = flash ? 1.18 : 0.72;
-    }
-  }
 }
 
 function updateShield(
   delta: number,
-  leftConnected: boolean,
-  leftGrip: Group | undefined,
-  leftPinchStrength: number,
-  rightConnected: boolean,
-  rightGrip: Group | undefined,
-  rightPinchStrength: number,
+  handConnected: boolean,
+  grip: Group | undefined,
+  pinchStrength: number,
 ): boolean {
   const village = runtime.village;
   const shield = runtime.shieldGroup;
@@ -379,46 +328,22 @@ function updateShield(
   let x = 0;
   let z = 0;
 
-  let bestDistance = Number.POSITIVE_INFINITY;
-  const hands = [
-    {
-      connected: leftConnected,
-      grip: leftGrip,
-      pinchStrength: leftPinchStrength,
-    },
-    {
-      connected: rightConnected,
-      grip: rightGrip,
-      pinchStrength: rightPinchStrength,
-    },
-  ];
+  const openHand = handConnected && !!grip && pinchStrength < 0.22;
 
-  village.updateWorldMatrix(true, false);
-
-  for (const hand of hands) {
-    const openHand =
-      hand.connected && !!hand.grip && hand.pinchStrength < 0.22;
-    if (!openHand || !hand.grip) continue;
-
-    hand.grip.updateWorldMatrix(true, false);
-    hand.grip.getWorldPosition(handWorld);
+  if (openHand && grip) {
+    grip.updateWorldMatrix(true, false);
+    village.updateWorldMatrix(true, false);
+    grip.getWorldPosition(handWorld);
     handLocal.copy(handWorld);
     village.worldToLocal(handLocal);
 
     const horizontalDistance = Math.hypot(handLocal.x, handLocal.z);
     const usefulHeight = handLocal.y > 0.07 && handLocal.y < 0.55;
-    const useful = usefulHeight && horizontalDistance < 0.38;
-
-    if (useful && horizontalDistance < bestDistance) {
-      bestDistance = horizontalDistance;
-      active = true;
-      centered = horizontalDistance < 0.24;
-      x = handLocal.x;
-      z = handLocal.z;
-    }
-  }
-
-  if (!active && runtime.forcedShield) {
+    active = usefulHeight && horizontalDistance < 0.38;
+    centered = active && horizontalDistance < 0.24;
+    x = handLocal.x;
+    z = handLocal.z;
+  } else if (runtime.forcedShield) {
     active = true;
     centered = true;
     x = 0;
@@ -428,23 +353,8 @@ function updateShield(
   shield.visible = active;
   if (active) {
     shield.position.set(x, 0.055, z);
-    const pulse = 1 + Math.sin(runtime.stormElapsed * 7) * (centered ? 0.055 : 0.025);
+    const pulse = 1 + Math.sin(runtime.stormElapsed * 7) * 0.035;
     shield.scale.setScalar(pulse);
-    shield.rotation.y += delta * (centered ? 1.6 : 0.65);
-
-    for (const child of shield.children) {
-      if (!child.userData.deskbornShieldSpark) continue;
-      const baseAngle = child.userData.baseAngle as number;
-      const angle = baseAngle + runtime.stormElapsed * (centered ? 2.4 : 1.2);
-      const radius = centered ? 0.21 : 0.19;
-      child.position.set(
-        Math.cos(angle) * radius,
-        0.045 + Math.sin(runtime.stormElapsed * 6 + baseAngle) * 0.018,
-        Math.sin(angle) * radius,
-      );
-      child.scale.setScalar(centered ? 1.35 : 0.72);
-    }
-
     if (runtime.shieldRingMaterial) {
       runtime.shieldRingMaterial.opacity = centered ? 0.95 : 0.45;
     }
@@ -481,16 +391,12 @@ export class StormSystem extends StormSystemBase {
     runtime.stormElapsed += delta;
     animateStorm(delta);
 
-    const leftHand = this.input.xr.visualAdapters.hand.left;
-    const rightHand = this.input.xr.visualAdapters.hand.right;
+    const hand = this.input.xr.visualAdapters.hand.right;
     const protectedNow = updateShield(
       delta,
-      leftHand.connected,
-      leftHand.gripSpace,
-      leftHand.getPinchStrength(),
-      rightHand.connected,
-      rightHand.gripSpace,
-      rightHand.getPinchStrength(),
+      hand.connected,
+      hand.gripSpace,
+      hand.getPinchStrength(),
     );
 
     const bucket = Math.floor(runtime.stormElapsed * 2);
