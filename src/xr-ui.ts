@@ -165,7 +165,7 @@ export function configureXrUi(preview: Group, village: Group): void {
   preview.add(previewPanel.sprite);
 
   villagePanel = createPanel(0.68, 0.34);
-  villagePanel.sprite.position.set(0, 0.55, -0.30);
+  villagePanel.sprite.position.set(0, 0.62, 0);
   villagePanel.sprite.visible = false;
   village.add(villagePanel.sprite);
 
@@ -199,7 +199,20 @@ export function setVillageXrUi(
   tone: PanelTone = 'neutral',
 ): void {
   if (!villagePanel) return;
+
   villagePanel.sprite.visible = true;
+
+  if (tone === 'good') {
+    villagePanel.sprite.position.set(0, 0.78, 0);
+    villagePanel.sprite.scale.set(0.92, 0.46, 1);
+  } else if (tone === 'danger') {
+    villagePanel.sprite.position.set(0, 0.68, 0);
+    villagePanel.sprite.scale.set(0.78, 0.39, 1);
+  } else {
+    villagePanel.sprite.position.set(0, 0.62, 0);
+    villagePanel.sprite.scale.set(0.68, 0.34, 1);
+  }
+
   paint(villagePanel, eyebrow, title, sub, tone);
 }
 
