@@ -2,13 +2,13 @@
 
 A hands-first mixed-reality game for the Meta VR Start Developer Competition 2026.
 
-## Build 0.11 — Submission Candidate
+## Build 0.12 — Submission Candidate
 
 This build freezes gameplay scope and focuses on a clean judge path plus production deployment.
 
 ### Experience
 
-- Place a glowing seed on a real tabletop using gaze + either controller trigger or either-hand pinch
+- Place a glowing seed on a real tabletop using an XR ray-interactable placement reticle; either controller trigger or either-hand pinch can plant
 - After 8 seconds without a usable flat surface, offer an optional viewer-relative fallback; the player can keep searching indefinitely or pinch with either hand to place the village in front
 - Watch a miniature civilization grow
 - Interact with citizens using pinch/select hold
