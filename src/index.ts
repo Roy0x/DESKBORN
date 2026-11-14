@@ -1,5 +1,6 @@
 import {
   EnvironmentRaycastTarget,
+  InputComponent,
   RaycastSpace,
   World,
   createSystem,
@@ -50,6 +51,8 @@ type DeskbornState = {
   noSurfaceElapsed: number;
   fallbackAvailable: boolean;
   fallbackUsed: boolean;
+  leftPinchDown: boolean;
+  rightPinchDown: boolean;
 };
 
 const state: DeskbornState = {
@@ -67,6 +70,8 @@ const state: DeskbornState = {
   noSurfaceElapsed: 0,
   fallbackAvailable: false,
   fallbackUsed: false,
+  leftPinchDown: false,
+  rightPinchDown: false,
 };
 
 const WORLD_UP = new Vector3(0, 1, 0);
@@ -238,18 +243,18 @@ function setHud(mode: 'scan' | 'invalid' | 'ready' | 'planted'): void {
 
   const content = {
     scan: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.10',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.11',
       title: 'Aim at a surface',
       sub: 'Look at a tabletop or other horizontal surface, then pinch with either hand.',
     },
     invalid: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.10',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.11',
       title: 'Find a flatter surface',
       sub: 'The village can only be planted on a reasonably horizontal surface.',
     },
     ready: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.10',
-      title: 'Pinch / trigger to plant',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.11',
+      title: 'Trigger / pinch to plant',
       sub: 'The green ring marks where the miniature world will grow.',
     },
     planted: {
@@ -435,6 +440,8 @@ function resetPlacement(): void {
   state.noSurfaceElapsed = 0;
   state.fallbackAvailable = false;
   state.fallbackUsed = false;
+  state.leftPinchDown = false;
+  state.rightPinchDown = false;
   setCitizensActive(false);
   resetStorm();
   hideVillageXrUi();
@@ -565,12 +572,12 @@ class DeskbornPlacementSystem extends DeskbornPlacementSystemBase {
         hud.innerHTML = `
           <div class="eyebrow">DESKBORN — OPTIONAL FALLBACK</div>
           <div class="title">Still looking for a surface?</div>
-          <div class="sub">Keep looking as long as you want, or pinch with either hand now to place the village in front of you.</div>
+          <div class="sub">Keep looking as long as you want, or press either controller trigger / pinch either hand to place the village in front of you.</div>
         `;
       }
       setPlacementXrUi(
         'Place in front of me',
-        'Keep looking for a tabletop, or pinch with either hand now to use the safe front placement.',
+        'Keep looking for a tabletop, or use either trigger / hand pinch now for the safe front placement.',
         'DESKBORN — OPTIONAL FALLBACK',
         'accent',
       );
@@ -578,9 +585,33 @@ class DeskbornPlacementSystem extends DeskbornPlacementSystemBase {
       setHud(!hasHit ? 'scan' : !hasValidHorizontalHit ? 'invalid' : 'ready');
     }
 
-    const rightSelect = this.input.gamepads.right?.getSelectStart() ?? false;
-    const leftSelect = this.input.gamepads.left?.getSelectStart() ?? false;
-    const requestedPlant = rightSelect || leftSelect || state.requestPlant;
+    const rightGamepad = this.input.xr.gamepads.right;
+    const leftGamepad = this.input.xr.gamepads.left;
+
+    const rightTrigger =
+      rightGamepad?.getButtonDown(InputComponent.Trigger) ??
+      rightGamepad?.getSelectStart() ??
+      false;
+    const leftTrigger =
+      leftGamepad?.getButtonDown(InputComponent.Trigger) ??
+      leftGamepad?.getSelectStart() ??
+      false;
+
+    const leftHand = this.input.xr.visualAdapters.hand.left;
+    const rightHand = this.input.xr.visualAdapters.hand.right;
+    const leftPinchNow = leftHand.connected && leftHand.getPinchStrength() > 0.72;
+    const rightPinchNow = rightHand.connected && rightHand.getPinchStrength() > 0.72;
+    const leftPinchStart = leftPinchNow && !state.leftPinchDown;
+    const rightPinchStart = rightPinchNow && !state.rightPinchDown;
+    state.leftPinchDown = leftPinchNow;
+    state.rightPinchDown = rightPinchNow;
+
+    const requestedPlant =
+      rightTrigger ||
+      leftTrigger ||
+      leftPinchStart ||
+      rightPinchStart ||
+      state.requestPlant;
     state.requestPlant = false;
 
     if (!requestedPlant) return;
