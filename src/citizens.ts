@@ -34,6 +34,7 @@ type CitizenRuntime = {
 
 let citizensActive = false;
 let panicMode = false;
+let celebrationMode = false;
 let lastHint = '';
 const direction = new Vector3();
 const desiredScale = new Vector3();
@@ -116,12 +117,26 @@ function citizenModel(
 
 export function setCitizensActive(active: boolean): void {
   citizensActive = active;
-  if (!active) lastHint = '';
+  if (!active) {
+    celebrationMode = false;
+    lastHint = '';
+  }
 }
 
 export function setCitizenPanic(active: boolean): void {
   panicMode = active;
-  if (active) lastHint = '';
+  if (active) {
+    celebrationMode = false;
+    lastHint = '';
+  }
+}
+
+export function setCitizenCelebration(active: boolean): void {
+  celebrationMode = active;
+  if (active) {
+    panicMode = false;
+    lastHint = '';
+  }
 }
 
 export function createCitizens(world: World, parent: Entity): void {
@@ -198,6 +213,22 @@ export class CitizenSystem extends CitizenSystemBase {
 
       runtime.elapsed += delta;
 
+      if (celebrationMode) {
+        const bounce = Math.abs(Math.sin(runtime.elapsed * 8 + runtime.seed)) * 0.038;
+        const pulse = 1.04 + Math.sin(runtime.elapsed * 7 + runtime.seed) * 0.08;
+        object.position.y = bounce;
+        object.rotation.y += delta * (2.2 + runtime.seed * 0.08);
+        object.rotation.z = Math.sin(runtime.elapsed * 9 + runtime.seed) * 0.09;
+        object.scale.setScalar(pulse);
+
+        for (const material of runtime.materials) {
+          material.emissive.setHex(0x5c7d24);
+          material.emissiveIntensity +=
+            (0.78 - material.emissiveIntensity) * Math.min(1, delta * 10);
+        }
+        continue;
+      }
+
       if (runtime.panicSeen !== panicMode) {
         runtime.panicSeen = panicMode;
         nextTarget(runtime);
@@ -270,7 +301,7 @@ export class CitizenSystem extends CitizenSystemBase {
         Math.sin(runtime.elapsed * frequency + runtime.seed) * sway;
     }
 
-    if (panicMode) return;
+    if (panicMode || celebrationMode) return;
 
     if (anyGrabbed) {
       setHint(
