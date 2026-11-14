@@ -47,6 +47,8 @@ type DeskbornState = {
   pulse: number;
   requestPlant: boolean;
   lastHudMode: string;
+  noSurfaceElapsed: number;
+  fallbackUsed: boolean;
 };
 
 const state: DeskbornState = {
@@ -61,10 +63,16 @@ const state: DeskbornState = {
   pulse: 0,
   requestPlant: false,
   lastHudMode: '',
+  noSurfaceElapsed: 0,
+  fallbackUsed: false,
 };
 
 const WORLD_UP = new Vector3(0, 1, 0);
 const surfaceUp = new Vector3();
+const viewerWorld = new Vector3();
+const fallbackTarget = new Vector3();
+const fallbackForward = new Vector3();
+const FALLBACK_SECONDS = 8;
 
 function mat(color: number, roughness = 0.72): MeshStandardMaterial {
   return new MeshStandardMaterial({ color, roughness, metalness: 0.04 });
@@ -228,17 +236,17 @@ function setHud(mode: 'scan' | 'invalid' | 'ready' | 'planted'): void {
 
   const content = {
     scan: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.8',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.9',
       title: 'Aim at a surface',
-      sub: 'Point the right-hand ray at a tabletop or other horizontal surface.',
+      sub: 'Look at a tabletop or other horizontal surface, then pinch with either hand.',
     },
     invalid: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.8',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.9',
       title: 'Find a flatter surface',
       sub: 'The village can only be planted on a reasonably horizontal surface.',
     },
     ready: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.8',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.9',
       title: 'Pinch / trigger to plant',
       sub: 'The green ring marks where the miniature world will grow.',
     },
@@ -422,6 +430,8 @@ function resetPlacement(): void {
   state.planted = false;
   state.growth = 0;
   state.requestPlant = false;
+  state.noSurfaceElapsed = 0;
+  state.fallbackUsed = false;
   setCitizensActive(false);
   resetStorm();
   hideVillageXrUi();
@@ -439,6 +449,57 @@ const DeskbornPlacementSystemBase = createSystem({
 });
 
 class DeskbornPlacementSystem extends DeskbornPlacementSystemBase {
+  private plantFallback(): void {
+    const village = state.village;
+    if (!village || state.planted) return;
+
+    this.camera.updateWorldMatrix(true, false);
+    this.camera.getWorldPosition(viewerWorld);
+    this.camera.getWorldDirection(fallbackForward);
+    fallbackForward.y = 0;
+
+    if (fallbackForward.lengthSq() < 0.0001) {
+      fallbackForward.set(0, 0, -1);
+    } else {
+      fallbackForward.normalize();
+    }
+
+    fallbackTarget.copy(viewerWorld).addScaledVector(fallbackForward, 0.9);
+    fallbackTarget.y = Math.max(0.62, viewerWorld.y - 0.75);
+
+    if (village.parent) {
+      village.parent.updateWorldMatrix(true, false);
+      village.parent.worldToLocal(fallbackTarget);
+    }
+
+    village.position.copy(fallbackTarget);
+    village.quaternion.identity();
+    village.scale.setScalar(0.001);
+    village.visible = true;
+
+    state.planted = true;
+    state.fallbackUsed = true;
+    state.growth = 0;
+    playPlant();
+    setPreviewChildrenVisible(false);
+    hidePlacementXrUi();
+    setVillageXrUi(
+      'Surface fallback activated',
+      'No flat surface was found, so your village was placed safely in front of you.',
+      'DESKBORN — READY',
+      'accent',
+    );
+
+    const hud = document.getElementById('deskborn-hud');
+    if (hud) {
+      hud.innerHTML = `
+        <div class="eyebrow">DESKBORN — SURFACE FALLBACK</div>
+        <div class="title">Village placed in front of you</div>
+        <div class="sub">No usable tabletop was detected after 8 seconds. Continue normally.</div>
+      `;
+    }
+  }
+
   update(delta: number): void {
     state.pulse += delta;
 
@@ -485,6 +546,20 @@ class DeskbornPlacementSystem extends DeskbornPlacementSystemBase {
     });
 
     setHud(!hasHit ? 'scan' : !hasValidHorizontalHit ? 'invalid' : 'ready');
+
+    const immersive =
+      this.visibilityState.peek() === 'visible' ||
+      this.visibilityState.peek() === 'visible-blurred';
+
+    if (immersive && !hasValidHorizontalHit) {
+      state.noSurfaceElapsed += delta;
+      if (state.noSurfaceElapsed >= FALLBACK_SECONDS) {
+        this.plantFallback();
+        return;
+      }
+    } else if (hasValidHorizontalHit) {
+      state.noSurfaceElapsed = 0;
+    }
 
     const rightSelect = this.input.gamepads.right?.getSelectStart() ?? false;
     const leftSelect = this.input.gamepads.left?.getSelectStart() ?? false;
@@ -567,7 +642,7 @@ World.create(sceneContainer, projectOptions).then((world) => {
 
   const previewEntity = world.createTransformEntity(previewGroup);
   previewEntity.addComponent(EnvironmentRaycastTarget, {
-    space: RaycastSpace.Right,
+    space: RaycastSpace.Viewer,
     maxDistance: 4,
   });
 
