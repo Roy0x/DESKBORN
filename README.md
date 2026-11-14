@@ -2,14 +2,14 @@
 
 A hands-first mixed-reality game for the Meta VR Start Developer Competition 2026.
 
-## Build 0.9 — Submission Candidate
+## Build 0.10 — Submission Candidate
 
 This build freezes gameplay scope and focuses on a clean judge path plus production deployment.
 
 ### Experience
 
 - Place a glowing seed on a real tabletop using gaze + either-hand pinch
-- Auto-place a safe viewer-relative village after 8 seconds if no usable flat surface is detected
+- After 8 seconds without a usable flat surface, offer an optional viewer-relative fallback; the player can keep searching indefinitely or pinch with either hand to place the village in front
 - Watch a miniature civilization grow
 - Interact with citizens using pinch/select hold
 - React to a storm warning
@@ -20,7 +20,7 @@ This build freezes gameplay scope and focuses on a clean judge path plus product
 
 ### Submission timing
 
-The calm phase remains long enough for a first-time judge to discover and grab a citizen before the storm begins. Build 0.9 also removes two judge-environment failure modes: no detected tabletop and right-hand-only shielding.
+The calm phase remains long enough for a first-time judge to discover and grab a citizen before the storm begins. Build 0.10 removes two judge-environment failure modes without taking control away from the player: no detected tabletop gets an optional fallback, and shielding works with either hand.
 
 ## Local run
 
