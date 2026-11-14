@@ -1,8 +1,5 @@
 import {
   EnvironmentRaycastTarget,
-  InputComponent,
-  Pressed,
-  RayInteractable,
   RaycastSpace,
   World,
   createSystem,
@@ -50,13 +47,6 @@ type DeskbornState = {
   pulse: number;
   requestPlant: boolean;
   lastHudMode: string;
-  noSurfaceElapsed: number;
-  fallbackAvailable: boolean;
-  fallbackUsed: boolean;
-  leftPinchDown: boolean;
-  rightPinchDown: boolean;
-  leftTriggerDown: boolean;
-  rightTriggerDown: boolean;
 };
 
 const state: DeskbornState = {
@@ -71,21 +61,10 @@ const state: DeskbornState = {
   pulse: 0,
   requestPlant: false,
   lastHudMode: '',
-  noSurfaceElapsed: 0,
-  fallbackAvailable: false,
-  fallbackUsed: false,
-  leftPinchDown: false,
-  rightPinchDown: false,
-  leftTriggerDown: false,
-  rightTriggerDown: false,
 };
 
 const WORLD_UP = new Vector3(0, 1, 0);
 const surfaceUp = new Vector3();
-const viewerWorld = new Vector3();
-const fallbackTarget = new Vector3();
-const fallbackForward = new Vector3();
-const FALLBACK_SECONDS = 8;
 
 function mat(color: number, roughness = 0.72): MeshStandardMaterial {
   return new MeshStandardMaterial({ color, roughness, metalness: 0.04 });
@@ -249,19 +228,19 @@ function setHud(mode: 'scan' | 'invalid' | 'ready' | 'planted'): void {
 
   const content = {
     scan: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.12',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.7',
       title: 'Aim at a surface',
-      sub: 'Look at a tabletop or other horizontal surface, then pinch with either hand.',
+      sub: 'Point the right-hand ray at a tabletop or other horizontal surface.',
     },
     invalid: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.12',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.7',
       title: 'Find a flatter surface',
       sub: 'The village can only be planted on a reasonably horizontal surface.',
     },
     ready: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.12',
-      title: 'Trigger / pinch to plant',
-      sub: 'Aim either controller at the green ring and press trigger, or pinch with either hand.',
+      eyebrow: 'DESKBORN — SEED / BUILD 0.7',
+      title: 'Pinch / trigger to plant',
+      sub: 'The green ring marks where the miniature world will grow.',
     },
     planted: {
       eyebrow: 'DESKBORN — SEED',
@@ -443,13 +422,6 @@ function resetPlacement(): void {
   state.planted = false;
   state.growth = 0;
   state.requestPlant = false;
-  state.noSurfaceElapsed = 0;
-  state.fallbackAvailable = false;
-  state.fallbackUsed = false;
-  state.leftPinchDown = false;
-  state.rightPinchDown = false;
-  state.leftTriggerDown = false;
-  state.rightTriggerDown = false;
   setCitizensActive(false);
   resetStorm();
   hideVillageXrUi();
@@ -463,61 +435,10 @@ function resetPlacement(): void {
 }
 
 const DeskbornPlacementSystemBase = createSystem({
-  raycastTargets: { required: [EnvironmentRaycastTarget, RayInteractable] },
+  raycastTargets: { required: [EnvironmentRaycastTarget] },
 });
 
 class DeskbornPlacementSystem extends DeskbornPlacementSystemBase {
-  private plantFallback(): void {
-    const village = state.village;
-    if (!village || state.planted) return;
-
-    this.camera.updateWorldMatrix(true, false);
-    this.camera.getWorldPosition(viewerWorld);
-    this.camera.getWorldDirection(fallbackForward);
-    fallbackForward.y = 0;
-
-    if (fallbackForward.lengthSq() < 0.0001) {
-      fallbackForward.set(0, 0, -1);
-    } else {
-      fallbackForward.normalize();
-    }
-
-    fallbackTarget.copy(viewerWorld).addScaledVector(fallbackForward, 0.9);
-    fallbackTarget.y = Math.max(0.62, viewerWorld.y - 0.75);
-
-    if (village.parent) {
-      village.parent.updateWorldMatrix(true, false);
-      village.parent.worldToLocal(fallbackTarget);
-    }
-
-    village.position.copy(fallbackTarget);
-    village.quaternion.identity();
-    village.scale.setScalar(0.001);
-    village.visible = true;
-
-    state.planted = true;
-    state.fallbackUsed = true;
-    state.growth = 0;
-    playPlant();
-    setPreviewChildrenVisible(false);
-    hidePlacementXrUi();
-    setVillageXrUi(
-      'Surface fallback activated',
-      'No flat surface was found, so your village was placed safely in front of you.',
-      'DESKBORN — READY',
-      'accent',
-    );
-
-    const hud = document.getElementById('deskborn-hud');
-    if (hud) {
-      hud.innerHTML = `
-        <div class="eyebrow">DESKBORN — SURFACE FALLBACK</div>
-        <div class="title">Village placed in front of you</div>
-        <div class="sub">You chose the safe front placement. Continue normally.</div>
-      `;
-    }
-  }
-
   update(delta: number): void {
     state.pulse += delta;
 
@@ -563,81 +484,12 @@ class DeskbornPlacementSystem extends DeskbornPlacementSystemBase {
       state.seedMaterial?.emissive.setHex(valid ? 0x72a621 : 0x8a351e);
     });
 
-    const immersive =
-      this.visibilityState.peek() === 'visible' ||
-      this.visibilityState.peek() === 'visible-blurred';
+    setHud(!hasHit ? 'scan' : !hasValidHorizontalHit ? 'invalid' : 'ready');
 
-    if (immersive && !hasValidHorizontalHit && !state.fallbackAvailable) {
-      state.noSurfaceElapsed += delta;
-      if (state.noSurfaceElapsed >= FALLBACK_SECONDS) {
-        state.fallbackAvailable = true;
-      }
-    }
-
-    if (state.fallbackAvailable && !hasValidHorizontalHit) {
-      const hud = document.getElementById('deskborn-hud');
-      if (hud) {
-        hud.innerHTML = `
-          <div class="eyebrow">DESKBORN — OPTIONAL FALLBACK</div>
-          <div class="title">Still looking for a surface?</div>
-          <div class="sub">Keep looking as long as you want, or press either controller trigger / pinch either hand to place the village in front of you.</div>
-        `;
-      }
-      setPlacementXrUi(
-        'Place in front of me',
-        'Keep looking for a tabletop, or use either trigger / hand pinch now for the safe front placement.',
-        'DESKBORN — OPTIONAL FALLBACK',
-        'accent',
-      );
-    } else {
-      setHud(!hasHit ? 'scan' : !hasValidHorizontalHit ? 'invalid' : 'ready');
-    }
-
-    const rightGamepad = this.input.xr.gamepads.right;
-    const leftGamepad = this.input.xr.gamepads.left;
-
-    const rightTriggerNow =
-      rightGamepad?.getButtonPressed(InputComponent.Trigger) ??
-      rightGamepad?.getSelecting() ??
-      false;
-    const leftTriggerNow =
-      leftGamepad?.getButtonPressed(InputComponent.Trigger) ??
-      leftGamepad?.getSelecting() ??
-      false;
-    const rightTriggerStart = rightTriggerNow && !state.rightTriggerDown;
-    const leftTriggerStart = leftTriggerNow && !state.leftTriggerDown;
-    state.rightTriggerDown = rightTriggerNow;
-    state.leftTriggerDown = leftTriggerNow;
-
-    let reticlePressed = false;
-    this.queries.raycastTargets.entities.forEach((entity) => {
-      reticlePressed ||= entity.hasComponent(Pressed);
-    });
-
-    const leftHand = this.input.xr.visualAdapters.hand.left;
-    const rightHand = this.input.xr.visualAdapters.hand.right;
-    const leftPinchNow = leftHand.connected && leftHand.getPinchStrength() > 0.72;
-    const rightPinchNow = rightHand.connected && rightHand.getPinchStrength() > 0.72;
-    const leftPinchStart = leftPinchNow && !state.leftPinchDown;
-    const rightPinchStart = rightPinchNow && !state.rightPinchDown;
-    state.leftPinchDown = leftPinchNow;
-    state.rightPinchDown = rightPinchNow;
-
-    const requestedPlant =
-      reticlePressed ||
-      rightTriggerStart ||
-      leftTriggerStart ||
-      leftPinchStart ||
-      rightPinchStart ||
-      state.requestPlant;
+    const rightSelect = this.input.gamepads.right?.getSelectStart() ?? false;
+    const leftSelect = this.input.gamepads.left?.getSelectStart() ?? false;
+    if (!(rightSelect || leftSelect || state.requestPlant)) return;
     state.requestPlant = false;
-
-    if (!requestedPlant) return;
-
-    if (state.fallbackAvailable && !hasValidHorizontalHit) {
-      this.plantFallback();
-      return;
-    }
 
     this.queries.raycastTargets.entities.forEach((entity) => {
       if (state.planted) return;
@@ -713,23 +565,11 @@ World.create(sceneContainer, projectOptions).then((world) => {
   previewSeed.castShadow = true;
   previewGroup.add(previewSeed);
 
-  const previewHitArea = new Mesh(
-    new CylinderGeometry(0.13, 0.13, 0.012, 24),
-    new MeshStandardMaterial({
-      transparent: true,
-      opacity: 0.001,
-      depthWrite: false,
-    }),
-  );
-  previewHitArea.position.y = 0.008;
-  previewGroup.add(previewHitArea);
-
   const previewEntity = world.createTransformEntity(previewGroup);
   previewEntity.addComponent(EnvironmentRaycastTarget, {
-    space: RaycastSpace.Viewer,
+    space: RaycastSpace.Right,
     maxDistance: 4,
   });
-  previewEntity.addComponent(RayInteractable);
 
   const village = buildVillage();
   const villageEntity = world.createTransformEntity(village);
