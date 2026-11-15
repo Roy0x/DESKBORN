@@ -75,6 +75,8 @@ export function playPlant(): void {
   tone(330, 0.26, 0.07, 'sine');
   tone(495, 0.32, 0.055, 'sine', 0.09);
   tone(660, 0.42, 0.045, 'triangle', 0.18);
+  tone(880, 0.34, 0.03, 'sine', 0.34);
+  tone(1174.66, 0.28, 0.018, 'sine', 0.48);
 }
 
 export function playGrab(): void {
@@ -95,6 +97,8 @@ export function playSuccess(): void {
   tone(392, 0.24, 0.055, 'sine');
   tone(523.25, 0.28, 0.05, 'sine', 0.14);
   tone(659.25, 0.42, 0.045, 'triangle', 0.28);
+  tone(783.99, 0.46, 0.035, 'sine', 0.42);
+  tone(1046.5, 0.62, 0.024, 'sine', 0.56);
 }
 
 export function playFailure(): void {
