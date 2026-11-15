@@ -433,7 +433,8 @@ function animateSuccess(delta: number): void {
       const pulse = 1 + Math.sin(t * 2.2) * 0.08;
       child.scale.setScalar(pulse);
       child.rotation.z += delta * 0.18;
-      const material = child.material as MeshBasicMaterial;
+      const haloMesh = child as Mesh;
+      const material = haloMesh.material as MeshBasicMaterial;
       material.opacity = 0.24 + Math.sin(t * 2.2) * 0.08;
     }
   }
