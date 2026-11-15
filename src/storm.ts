@@ -37,6 +37,7 @@ type StormRuntime = {
   shieldDomeMaterial: MeshBasicMaterial | null;
   lightningMaterial: MeshBasicMaterial | null;
   damageGroup: Group | null;
+  successGroup: Group | null;
   ambient: AmbientLight | null;
   sun: DirectionalLight | null;
   phase: StormPhase;
@@ -44,6 +45,7 @@ type StormRuntime = {
   elapsed: number;
   stormElapsed: number;
   protectedSeconds: number;
+  successElapsed: number;
   forcedShield: boolean;
   hudBucket: number;
 };
@@ -61,6 +63,7 @@ const runtime: StormRuntime = {
   shieldDomeMaterial: null,
   lightningMaterial: null,
   damageGroup: null,
+  successGroup: null,
   ambient: null,
   sun: null,
   phase: 'idle',
@@ -68,6 +71,7 @@ const runtime: StormRuntime = {
   elapsed: 0,
   stormElapsed: 0,
   protectedSeconds: 0,
+  successElapsed: 0,
   forcedShield: false,
   hudBucket: -1,
 };
@@ -221,13 +225,49 @@ function createStormVisuals(village: Group): void {
     damage.add(mark);
   }
 
-  village.add(storm, shield, damage);
+  const success = new Group();
+  success.visible = false;
+
+  const celebrationMaterial = new MeshBasicMaterial({
+    color: 0xd8ff9f,
+    transparent: true,
+    opacity: 0.88,
+    depthWrite: false,
+  });
+
+  for (let i = 0; i < 12; i += 1) {
+    const mote = new Mesh(new SphereGeometry(0.008, 6, 4), celebrationMaterial);
+    const angle = (i / 12) * Math.PI * 2;
+    const radius = 0.11 + (i % 4) * 0.045;
+    mote.position.set(Math.cos(angle) * radius, 0.09, Math.sin(angle) * radius);
+    mote.userData.deskbornSuccessMote = true;
+    mote.userData.baseAngle = angle;
+    mote.userData.radius = radius;
+    mote.userData.phase = (i % 5) * 0.73;
+    success.add(mote);
+  }
+
+  const haloMaterial = new MeshBasicMaterial({
+    color: 0xb9ff7a,
+    transparent: true,
+    opacity: 0.34,
+    depthWrite: false,
+    side: DoubleSide,
+  });
+  const halo = new Mesh(new RingGeometry(0.28, 0.34, 48), haloMaterial);
+  halo.rotation.x = -Math.PI / 2;
+  halo.position.y = 0.06;
+  halo.userData.deskbornSuccessHalo = true;
+  success.add(halo);
+
+  village.add(storm, shield, damage, success);
   runtime.stormGroup = storm;
   runtime.shieldGroup = shield;
   runtime.shieldRingMaterial = ringMaterial;
   runtime.shieldDomeMaterial = domeMaterial;
   runtime.lightningMaterial = lightningMaterial;
   runtime.damageGroup = damage;
+  runtime.successGroup = success;
 }
 
 export function configureStorm(
@@ -252,6 +292,7 @@ export function setStormReady(active: boolean): void {
   runtime.elapsed = 0;
   runtime.stormElapsed = 0;
   runtime.protectedSeconds = 0;
+  runtime.successElapsed = 0;
   runtime.hudBucket = -1;
 }
 
@@ -265,11 +306,13 @@ export function resetStorm(): void {
   runtime.elapsed = 0;
   runtime.stormElapsed = 0;
   runtime.protectedSeconds = 0;
+  runtime.successElapsed = 0;
   runtime.forcedShield = false;
   runtime.hudBucket = -1;
   if (runtime.stormGroup) runtime.stormGroup.visible = false;
   if (runtime.shieldGroup) runtime.shieldGroup.visible = false;
   if (runtime.damageGroup) runtime.damageGroup.visible = false;
+  if (runtime.successGroup) runtime.successGroup.visible = false;
   setCitizenCelebration(false);
   setCitizenPanic(false);
   setLighting(false);
@@ -312,6 +355,8 @@ function finishStorm(): void {
   if (runtime.stormGroup) runtime.stormGroup.visible = false;
   if (runtime.shieldGroup) runtime.shieldGroup.visible = false;
   if (runtime.damageGroup) runtime.damageGroup.visible = !success;
+  if (runtime.successGroup) runtime.successGroup.visible = success;
+  runtime.successElapsed = 0;
   setLighting(false);
   setCitizenPanic(false);
   setCitizenCelebration(success);
@@ -320,8 +365,8 @@ function finishStorm(): void {
     playSuccess();
     hud(
       'VILLAGE SAVED',
-      `The village survived · Shield coverage ${Math.round(ratio * 100)}% · Citizens are celebrating.`,
-      'DESKBORN — SUCCESS',
+      `You protected their world · Shield coverage ${Math.round(ratio * 100)}%.`,
+      'DESKBORN — THE VILLAGE LIVES',
       'good',
     );
   } else {
@@ -357,6 +402,39 @@ function animateStorm(delta: number): void {
       const flash = runtime.lightningMaterial.opacity > 0;
       runtime.ambient.intensity = flash ? 0.78 : 0.48;
       runtime.sun.intensity = flash ? 1.18 : 0.72;
+    }
+  }
+}
+
+function animateSuccess(delta: number): void {
+  const success = runtime.successGroup;
+  if (!success?.visible) return;
+
+  runtime.successElapsed += delta;
+  const t = runtime.successElapsed;
+
+  for (const child of success.children) {
+    if (child.userData.deskbornSuccessMote) {
+      const baseAngle = child.userData.baseAngle as number;
+      const radius = child.userData.radius as number;
+      const phase = child.userData.phase as number;
+      const angle = baseAngle + t * (0.38 + phase * 0.035);
+      child.position.set(
+        Math.cos(angle) * radius,
+        0.10 + Math.sin(t * 2.4 + phase) * 0.055 + ((t * 0.018 + phase * 0.01) % 0.08),
+        Math.sin(angle) * radius,
+      );
+      const pulse = 0.82 + Math.sin(t * 4.6 + phase) * 0.28;
+      child.scale.setScalar(Math.max(0.35, pulse));
+      continue;
+    }
+
+    if (child.userData.deskbornSuccessHalo) {
+      const pulse = 1 + Math.sin(t * 2.2) * 0.08;
+      child.scale.setScalar(pulse);
+      child.rotation.z += delta * 0.18;
+      const material = child.material as MeshBasicMaterial;
+      material.opacity = 0.24 + Math.sin(t * 2.2) * 0.08;
     }
   }
 }
@@ -447,6 +525,11 @@ export class StormSystem extends StormSystemBase {
       runtime.elapsed >= CALM_SECONDS + WARNING_SECONDS
     ) {
       beginStorm();
+    }
+
+    if (runtime.phase === 'success') {
+      animateSuccess(delta);
+      return;
     }
 
     if (runtime.phase !== 'storm') return;
