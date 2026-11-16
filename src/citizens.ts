@@ -30,6 +30,7 @@ type CitizenRuntime = {
   elapsed: number;
   panicSeen: boolean;
   materials: MeshStandardMaterial[];
+  visual: Group;
 };
 
 let citizensActive = false;
@@ -70,6 +71,7 @@ function citizenModel(
 
   const bodyMaterial = standardMaterial(color);
   const headMaterial = standardMaterial(0xe6b98d);
+  const visual = new Group();
 
   const body = new Mesh(
     new CylinderGeometry(0.012, 0.016, 0.045, 8),
@@ -86,16 +88,17 @@ function citizenModel(
   head.castShadow = false;
 
   const hitVolume = new Mesh(
-    new SphereGeometry(0.037, 8, 6),
+    new SphereGeometry(0.065, 10, 8),
     new MeshBasicMaterial({
       transparent: true,
       opacity: 0.001,
       depthWrite: false,
     }),
   );
-  hitVolume.position.y = 0.06;
+  hitVolume.position.y = 0.065;
 
-  group.add(body, head, hitVolume);
+  visual.add(body, head);
+  group.add(visual, hitVolume);
   group.position.set(x, 0, z);
 
   const runtime: CitizenRuntime = {
@@ -108,6 +111,7 @@ function citizenModel(
     elapsed: seed * 0.31,
     panicSeen: false,
     materials: [bodyMaterial, headMaterial],
+    visual,
   };
   nextTarget(runtime);
 
@@ -219,14 +223,19 @@ export class CitizenSystem extends CitizenSystemBase {
       anyHovered ||= hovered;
 
       if (celebrationMode && !grabbed) {
-        const bounce = Math.abs(Math.sin(runtime.elapsed * 8 + runtime.seed)) * 0.038;
+        const bounce =
+          Math.abs(Math.sin(runtime.elapsed * 8 + runtime.seed)) * 0.038;
         const pulse = hovered
           ? 1.16
           : 1.04 + Math.sin(runtime.elapsed * 7 + runtime.seed) * 0.08;
-        object.position.y = bounce;
-        object.rotation.y += delta * (2.2 + runtime.seed * 0.08);
-        object.rotation.z = Math.sin(runtime.elapsed * 9 + runtime.seed) * 0.09;
-        object.scale.setScalar(pulse);
+
+        // Keep the interaction root and invisible hit volume stationary.
+        // Only the visible citizen celebrates.
+        runtime.visual.position.y = bounce;
+        runtime.visual.rotation.y += delta * (2.2 + runtime.seed * 0.08);
+        runtime.visual.rotation.z =
+          Math.sin(runtime.elapsed * 9 + runtime.seed) * 0.09;
+        runtime.visual.scale.setScalar(pulse);
 
         for (const material of runtime.materials) {
           material.emissive.setHex(hovered ? 0x36511f : 0x5c7d24);
@@ -235,9 +244,6 @@ export class CitizenSystem extends CitizenSystemBase {
             (targetGlow - material.emissiveIntensity) * Math.min(1, delta * 10);
         }
 
-        if (hovered) {
-          continue;
-        }
         continue;
       }
 
@@ -248,7 +254,7 @@ export class CitizenSystem extends CitizenSystemBase {
 
       const targetScale = grabbed ? 1.28 : hovered ? 1.16 : 1;
       desiredScale.setScalar(targetScale);
-      object.scale.lerp(desiredScale, Math.min(1, delta * 12));
+      runtime.visual.scale.lerp(desiredScale, Math.min(1, delta * 12));
 
       const glow = grabbed
         ? 1.1
@@ -268,15 +274,18 @@ export class CitizenSystem extends CitizenSystemBase {
       if (grabbed) {
         if (!runtime.wasGrabbed) playGrab();
         runtime.wasGrabbed = true;
-        object.rotation.z = 0;
-        if (celebrationMode) {
-          object.scale.lerp(new Vector3(1.28, 1.28, 1.28), Math.min(1, delta * 14));
-        }
+        runtime.visual.position.y = 0;
+        runtime.visual.rotation.z = 0;
+        desiredScale.setScalar(1.28);
+        runtime.visual.scale.lerp(desiredScale, Math.min(1, delta * 14));
         continue;
       }
 
       if (runtime.wasGrabbed) {
         runtime.wasGrabbed = false;
+        runtime.visual.position.y = 0;
+        runtime.visual.rotation.z = 0;
+        runtime.visual.scale.setScalar(1);
         const radius = Math.hypot(object.position.x, object.position.z);
         if (radius > 0.30) {
           const scale = 0.30 / radius;
@@ -285,6 +294,11 @@ export class CitizenSystem extends CitizenSystemBase {
         }
         object.position.y = 0;
         nextTarget(runtime);
+      }
+
+      if (!celebrationMode) {
+        runtime.visual.position.y = 0;
+        runtime.visual.rotation.z = 0;
       }
 
       if (hovered && !panicMode) continue;
