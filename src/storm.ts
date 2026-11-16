@@ -347,7 +347,7 @@ function beginStorm(): void {
   setLighting(true);
   hud(
     'Protect the village',
-    'Hold an OPEN hand above the settlement. Keep the glowing shield over its center.',
+    'Hold EITHER OPEN hand above the settlement. Keep the glowing shield over its center.',
     'DESKBORN — STORM EVENT',
     'danger',
   );
@@ -453,11 +453,15 @@ function animateSuccess(delta: number): void {
   }
 }
 
+type ShieldHand = {
+  connected: boolean;
+  grip: Group | undefined;
+  pinchStrength: number;
+};
+
 function updateShield(
   delta: number,
-  handConnected: boolean,
-  grip: Group | undefined,
-  pinchStrength: number,
+  hands: ShieldHand[],
 ): boolean {
   const village = runtime.village;
   const shield = runtime.shieldGroup;
@@ -468,26 +472,39 @@ function updateShield(
   let x = 0;
   let z = 0;
 
-  const openHand = handConnected && !!grip && pinchStrength < 0.22;
-
-  if (openHand && grip) {
-    grip.updateWorldMatrix(true, false);
-    village.updateWorldMatrix(true, false);
-    grip.getWorldPosition(handWorld);
-    handLocal.copy(handWorld);
-    village.worldToLocal(handLocal);
-
-    const horizontalDistance = Math.hypot(handLocal.x, handLocal.z);
-    const usefulHeight = handLocal.y > 0.07 && handLocal.y < 0.55;
-    active = usefulHeight && horizontalDistance < 0.38;
-    centered = active && horizontalDistance < 0.24;
-    x = handLocal.x;
-    z = handLocal.z;
-  } else if (runtime.forcedShield) {
+  // Desktop/emulator verification override must win even when a tracked
+  // hand is connected but positioned away from the village.
+  if (runtime.forcedShield) {
     active = true;
     centered = true;
-    x = 0;
-    z = 0;
+  } else {
+    village.updateWorldMatrix(true, false);
+
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (const hand of hands) {
+      const openHand =
+        hand.connected &&
+        !!hand.grip &&
+        hand.pinchStrength < 0.30;
+
+      if (!openHand || !hand.grip) continue;
+
+      hand.grip.updateWorldMatrix(true, false);
+      hand.grip.getWorldPosition(handWorld);
+      handLocal.copy(handWorld);
+      village.worldToLocal(handLocal);
+
+      const horizontalDistance = Math.hypot(handLocal.x, handLocal.z);
+      const usefulHeight = handLocal.y > 0.06 && handLocal.y < 0.62;
+      if (!usefulHeight || horizontalDistance >= 0.42) continue;
+      if (horizontalDistance >= bestDistance) continue;
+
+      bestDistance = horizontalDistance;
+      active = true;
+      centered = horizontalDistance < 0.25;
+      x = handLocal.x;
+      z = handLocal.z;
+    }
   }
 
   shield.visible = active;
@@ -551,13 +568,20 @@ export class StormSystem extends StormSystemBase {
     runtime.stormElapsed += delta;
     animateStorm(delta);
 
-    const hand = this.input.xr.visualAdapters.hand.right;
-    const protectedNow = updateShield(
-      delta,
-      hand.connected,
-      hand.gripSpace,
-      hand.getPinchStrength(),
-    );
+    const leftHand = this.input.xr.visualAdapters.hand.left;
+    const rightHand = this.input.xr.visualAdapters.hand.right;
+    const protectedNow = updateShield(delta, [
+      {
+        connected: leftHand.connected,
+        grip: leftHand.gripSpace,
+        pinchStrength: leftHand.getPinchStrength(),
+      },
+      {
+        connected: rightHand.connected,
+        grip: rightHand.gripSpace,
+        pinchStrength: rightHand.getPinchStrength(),
+      },
+    ]);
 
     const bucket = Math.floor(runtime.stormElapsed * 2);
     if (bucket !== runtime.hudBucket) {
