@@ -213,18 +213,30 @@ export class CitizenSystem extends CitizenSystemBase {
 
       runtime.elapsed += delta;
 
-      if (celebrationMode) {
+      const grabbed = entity.hasComponent(Grabbed);
+      const hovered = entity.hasComponent(Hovered);
+      anyGrabbed ||= grabbed;
+      anyHovered ||= hovered;
+
+      if (celebrationMode && !grabbed) {
         const bounce = Math.abs(Math.sin(runtime.elapsed * 8 + runtime.seed)) * 0.038;
-        const pulse = 1.04 + Math.sin(runtime.elapsed * 7 + runtime.seed) * 0.08;
+        const pulse = hovered
+          ? 1.16
+          : 1.04 + Math.sin(runtime.elapsed * 7 + runtime.seed) * 0.08;
         object.position.y = bounce;
         object.rotation.y += delta * (2.2 + runtime.seed * 0.08);
         object.rotation.z = Math.sin(runtime.elapsed * 9 + runtime.seed) * 0.09;
         object.scale.setScalar(pulse);
 
         for (const material of runtime.materials) {
-          material.emissive.setHex(0x5c7d24);
+          material.emissive.setHex(hovered ? 0x36511f : 0x5c7d24);
+          const targetGlow = hovered ? 1.0 : 0.78;
           material.emissiveIntensity +=
-            (0.78 - material.emissiveIntensity) * Math.min(1, delta * 10);
+            (targetGlow - material.emissiveIntensity) * Math.min(1, delta * 10);
+        }
+
+        if (hovered) {
+          continue;
         }
         continue;
       }
@@ -233,11 +245,6 @@ export class CitizenSystem extends CitizenSystemBase {
         runtime.panicSeen = panicMode;
         nextTarget(runtime);
       }
-
-      const grabbed = entity.hasComponent(Grabbed);
-      const hovered = entity.hasComponent(Hovered);
-      anyGrabbed ||= grabbed;
-      anyHovered ||= hovered;
 
       const targetScale = grabbed ? 1.28 : hovered ? 1.16 : 1;
       desiredScale.setScalar(targetScale);
@@ -261,6 +268,10 @@ export class CitizenSystem extends CitizenSystemBase {
       if (grabbed) {
         if (!runtime.wasGrabbed) playGrab();
         runtime.wasGrabbed = true;
+        object.rotation.z = 0;
+        if (celebrationMode) {
+          object.scale.lerp(new Vector3(1.28, 1.28, 1.28), Math.min(1, delta * 14));
+        }
         continue;
       }
 
@@ -301,12 +312,14 @@ export class CitizenSystem extends CitizenSystemBase {
         Math.sin(runtime.elapsed * frequency + runtime.seed) * sway;
     }
 
-    if (panicMode || celebrationMode) return;
+    if (panicMode) return;
 
     if (anyGrabbed) {
       setHint(
         'You are holding a citizen',
-        'Move your pinching hand, then release to place them back into the village.',
+        celebrationMode
+          ? 'The village is safe. Move your pinching hand, then release the citizen anywhere inside the village.'
+          : 'Move your pinching hand, then release to place them back into the village.',
       );
     } else if (anyHovered) {
       setHint(
