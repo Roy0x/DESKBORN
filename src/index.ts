@@ -47,6 +47,7 @@ type DeskbornState = {
   growth: number;
   pulse: number;
   requestPlant: boolean;
+  leftPinchDown: boolean;
   rightPinchDown: boolean;
   lastHudMode: string;
 };
@@ -62,6 +63,7 @@ const state: DeskbornState = {
   growth: 0,
   pulse: 0,
   requestPlant: false,
+  leftPinchDown: false,
   rightPinchDown: false,
   lastHudMode: '',
 };
@@ -304,7 +306,7 @@ function setHud(mode: 'scan' | 'invalid' | 'ready' | 'planted'): void {
     scan: {
       eyebrow: 'DESKBORN — SEED',
       title: 'Find a surface',
-      sub: 'Aim your RIGHT hand at a tabletop or another flat surface.',
+      sub: 'Look at the spot on a tabletop where you want the seed to grow.',
     },
     invalid: {
       eyebrow: 'DESKBORN — SEED',
@@ -314,7 +316,7 @@ function setHud(mode: 'scan' | 'invalid' | 'ready' | 'planted'): void {
     ready: {
       eyebrow: 'DESKBORN — SEED',
       title: 'Plant the seed',
-      sub: 'With your RIGHT hand, pinch when the ring turns green.',
+      sub: 'Keep the green ring in place, then pinch with either hand.',
     },
     planted: {
       eyebrow: 'DESKBORN — SEED',
@@ -496,6 +498,7 @@ function resetPlacement(): void {
   state.planted = false;
   state.growth = 0;
   state.requestPlant = false;
+  state.leftPinchDown = false;
   state.rightPinchDown = false;
   setCitizensActive(false);
   resetStorm();
@@ -564,11 +567,18 @@ class DeskbornPlacementSystem extends DeskbornPlacementSystemBase {
 
     const rightControllerSelect =
       this.input.gamepads.right?.getSelectStart() ?? false;
+    const leftControllerSelect =
+      this.input.gamepads.left?.getSelectStart() ?? false;
 
+    const leftHand = this.input.xr.visualAdapters.hand.left;
     const rightHand = this.input.xr.visualAdapters.hand.right;
+    const leftPinchNow =
+      leftHand.connected && leftHand.getPinchStrength() > 0.72;
     const rightPinchNow =
       rightHand.connected && rightHand.getPinchStrength() > 0.72;
+    const leftPinchStart = leftPinchNow && !state.leftPinchDown;
     const rightPinchStart = rightPinchNow && !state.rightPinchDown;
+    state.leftPinchDown = leftPinchNow;
     state.rightPinchDown = rightPinchNow;
 
     const xrInput = this.input.xr as typeof this.input.xr & {
@@ -576,13 +586,18 @@ class DeskbornPlacementSystem extends DeskbornPlacementSystemBase {
         handedness: 'left' | 'right',
       ) => { start: boolean; end: boolean; active: boolean };
     };
+    const leftNativeHandSelect =
+      xrInput.getSelectState?.('left')?.start ?? false;
     const rightNativeHandSelect =
       xrInput.getSelectState?.('right')?.start ?? false;
 
     if (
       !(
         rightControllerSelect ||
+        leftControllerSelect ||
+        leftNativeHandSelect ||
         rightNativeHandSelect ||
+        leftPinchStart ||
         rightPinchStart ||
         state.requestPlant
       )
@@ -668,7 +683,7 @@ World.create(sceneContainer, projectOptions).then((world) => {
 
   const previewEntity = world.createTransformEntity(previewGroup);
   previewEntity.addComponent(EnvironmentRaycastTarget, {
-    space: RaycastSpace.Right,
+    space: RaycastSpace.Viewer,
     maxDistance: 4,
   });
 
