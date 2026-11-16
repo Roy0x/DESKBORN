@@ -715,13 +715,13 @@ World.create(sceneContainer, projectOptions).then((world) => {
       event.preventDefault();
     } else if (event.key.toLowerCase() === 'r') {
       resetPlacement();
-    } else if (event.key.toLowerCase() === 'h') {
+    } else if (event.code === 'KeyH' || event.key.toLowerCase() === 'h') {
       setTestShield(true);
     }
   });
 
   window.addEventListener('keyup', (event) => {
-    if (event.key.toLowerCase() === 'h') {
+    if (event.code === 'KeyH' || event.key.toLowerCase() === 'h') {
       setTestShield(false);
     }
   });
