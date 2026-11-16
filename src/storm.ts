@@ -134,13 +134,18 @@ function createStormVisuals(village: Group): void {
       new CylinderGeometry(0.002, 0.002, 0.075, 5),
       rainMaterial,
     );
-    const x = (((i * 37) % 100) / 100 - 0.5) * 0.72;
-    const z = (((i * 61 + 13) % 100) / 100 - 0.5) * 0.72;
+    const angle = (i / 16) * Math.PI * 2 + (i % 3) * 0.17;
+    const radius = 0.06 + (((i * 43) % 100) / 100) * 0.24;
+    const x = Math.cos(angle) * radius;
+    const z = Math.sin(angle) * radius;
     const y = 0.12 + (((i * 29 + 7) % 100) / 100) * 0.52;
     streak.position.set(x, y, z);
-    streak.rotation.z = 0.22;
+    streak.rotation.z = 0.12;
     streak.userData.deskbornRain = true;
     streak.userData.speed = 0.52 + (i % 5) * 0.07;
+    streak.userData.baseX = x;
+    streak.userData.baseZ = z;
+    streak.userData.phase = i * 0.71;
     storm.add(streak);
   }
 
@@ -385,11 +390,19 @@ function animateStorm(delta: number): void {
   if (!storm) return;
   for (const child of storm.children) {
     if (!child.userData.deskbornRain) continue;
+
+    const baseX = child.userData.baseX as number;
+    const baseZ = child.userData.baseZ as number;
+    const phase = child.userData.phase as number;
+
     child.position.y -= (child.userData.speed as number) * delta;
-    child.position.x += 0.1 * delta;
-    if (child.position.y < 0.04) {
+    child.position.x =
+      baseX + Math.sin(runtime.stormElapsed * 2.2 + phase) * 0.012;
+    child.position.z =
+      baseZ + Math.cos(runtime.stormElapsed * 1.7 + phase) * 0.008;
+
+    if (child.position.y < 0.055) {
       child.position.y = 0.62;
-      child.position.x -= 0.15;
     }
   }
 
