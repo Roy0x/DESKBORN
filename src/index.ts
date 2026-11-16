@@ -47,6 +47,7 @@ type DeskbornState = {
   growth: number;
   pulse: number;
   requestPlant: boolean;
+  rightPinchDown: boolean;
   lastHudMode: string;
 };
 
@@ -61,6 +62,7 @@ const state: DeskbornState = {
   growth: 0,
   pulse: 0,
   requestPlant: false,
+  rightPinchDown: false,
   lastHudMode: '',
 };
 
@@ -302,7 +304,7 @@ function setHud(mode: 'scan' | 'invalid' | 'ready' | 'planted'): void {
     scan: {
       eyebrow: 'DESKBORN — SEED',
       title: 'Find a surface',
-      sub: 'Aim at a tabletop or another flat surface.',
+      sub: 'Aim your RIGHT hand at a tabletop or another flat surface.',
     },
     invalid: {
       eyebrow: 'DESKBORN — SEED',
@@ -312,7 +314,7 @@ function setHud(mode: 'scan' | 'invalid' | 'ready' | 'planted'): void {
     ready: {
       eyebrow: 'DESKBORN — SEED',
       title: 'Plant the seed',
-      sub: 'Pinch when the ring turns green.',
+      sub: 'With your RIGHT hand, pinch when the ring turns green.',
     },
     planted: {
       eyebrow: 'DESKBORN — SEED',
@@ -494,6 +496,7 @@ function resetPlacement(): void {
   state.planted = false;
   state.growth = 0;
   state.requestPlant = false;
+  state.rightPinchDown = false;
   setCitizensActive(false);
   resetStorm();
   hideVillageXrUi();
@@ -559,9 +562,33 @@ class DeskbornPlacementSystem extends DeskbornPlacementSystemBase {
 
     setHud(!hasHit ? 'scan' : !hasValidHorizontalHit ? 'invalid' : 'ready');
 
-    const rightSelect = this.input.gamepads.right?.getSelectStart() ?? false;
-    const leftSelect = this.input.gamepads.left?.getSelectStart() ?? false;
-    if (!(rightSelect || leftSelect || state.requestPlant)) return;
+    const rightControllerSelect =
+      this.input.gamepads.right?.getSelectStart() ?? false;
+
+    const rightHand = this.input.xr.visualAdapters.hand.right;
+    const rightPinchNow =
+      rightHand.connected && rightHand.getPinchStrength() > 0.72;
+    const rightPinchStart = rightPinchNow && !state.rightPinchDown;
+    state.rightPinchDown = rightPinchNow;
+
+    const xrInput = this.input.xr as typeof this.input.xr & {
+      getSelectState?: (
+        handedness: 'left' | 'right',
+      ) => { start: boolean; end: boolean; active: boolean };
+    };
+    const rightNativeHandSelect =
+      xrInput.getSelectState?.('right')?.start ?? false;
+
+    if (
+      !(
+        rightControllerSelect ||
+        rightNativeHandSelect ||
+        rightPinchStart ||
+        state.requestPlant
+      )
+    ) {
+      return;
+    }
     state.requestPlant = false;
 
     this.queries.raycastTargets.entities.forEach((entity) => {
