@@ -14,8 +14,6 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
-  Object3D,
-  Quaternion,
   SphereGeometry,
   Vector3,
 } from 'three';
@@ -43,43 +41,6 @@ let celebrationMode = false;
 let lastHint = '';
 const direction = new Vector3();
 const desiredScale = new Vector3();
-
-const MAGNET_RADIUS = 0.22;
-const MAGNET_MAX_DISTANCE = 3.2;
-const rayOrigin = new Vector3();
-const rayDirection = new Vector3();
-const rayQuaternion = new Quaternion();
-const citizenWorld = new Vector3();
-const toCitizen = new Vector3();
-const closestOnRay = new Vector3();
-
-function rayDistanceToCitizen(
-  ray: Group | undefined,
-  object: Object3D,
-): number {
-  if (!ray) return Number.POSITIVE_INFINITY;
-
-  ray.updateWorldMatrix(true, false);
-  object.updateWorldMatrix(true, false);
-
-  ray.getWorldPosition(rayOrigin);
-  ray.getWorldQuaternion(rayQuaternion);
-  rayDirection.set(0, 0, -1).applyQuaternion(rayQuaternion).normalize();
-  object.getWorldPosition(citizenWorld);
-
-  toCitizen.copy(citizenWorld).sub(rayOrigin);
-  const alongRay = toCitizen.dot(rayDirection);
-  if (alongRay < 0.04 || alongRay > MAGNET_MAX_DISTANCE) {
-    return Number.POSITIVE_INFINITY;
-  }
-
-  closestOnRay
-    .copy(rayDirection)
-    .multiplyScalar(alongRay)
-    .add(rayOrigin);
-
-  return closestOnRay.distanceTo(citizenWorld);
-}
 
 function standardMaterial(color: number): MeshStandardMaterial {
   return new MeshStandardMaterial({
@@ -129,7 +90,7 @@ function citizenModel(
   head.castShadow = false;
 
   const hitVolume = new Mesh(
-    new SphereGeometry(0.09, 12, 10),
+    new SphereGeometry(0.12, 14, 12),
     new MeshBasicMaterial({
       transparent: true,
       opacity: 0.001,
@@ -258,40 +219,6 @@ export class CitizenSystem extends CitizenSystemBase {
   update(delta: number): void {
     if (!citizensActive) return;
 
-    const leftHand = this.input.xr.visualAdapters.hand.left;
-    const rightHand = this.input.xr.visualAdapters.hand.right;
-    const leftPointer = this.input.xr.visualAdapters.left.value;
-    const rightPointer = this.input.xr.visualAdapters.right.value;
-
-    let magneticTarget: Entity | null = null;
-    let magneticDistance = Number.POSITIVE_INFINITY;
-
-    if (!panicMode) {
-      for (const entity of this.queries.citizens.entities) {
-        const object = entity.object3D;
-        if (!object) continue;
-
-        const leftDistance = leftPointer?.connected
-          ? rayDistanceToCitizen(
-              leftPointer.raySpace ?? leftPointer.gripSpace,
-              object,
-            )
-          : Number.POSITIVE_INFINITY;
-        const rightDistance = rightPointer?.connected
-          ? rayDistanceToCitizen(
-              rightPointer.raySpace ?? rightPointer.gripSpace,
-              object,
-            )
-          : Number.POSITIVE_INFINITY;
-        const distance = Math.min(leftDistance, rightDistance);
-
-        if (distance <= MAGNET_RADIUS && distance < magneticDistance) {
-          magneticDistance = distance;
-          magneticTarget = entity;
-        }
-      }
-    }
-
     const pinchStrength = Math.max(
       this.input.xr.visualAdapters.hand.left.getPinchStrength(),
       this.input.xr.visualAdapters.hand.right.getPinchStrength(),
@@ -311,23 +238,13 @@ export class CitizenSystem extends CitizenSystemBase {
 
       const grabbed = entity.hasComponent(Grabbed);
       const hovered = entity.hasComponent(Hovered);
-      const magnetized = entity === magneticTarget && !grabbed;
 
       anyGrabbed ||= grabbed;
-      anyHovered ||= magnetized || (hovered && !celebrationMode);
+      anyHovered ||= hovered;
 
-      const desiredHitScale = magnetized ? 2.35 : 1;
-      if (magnetized) {
-        desiredScale.setScalar(desiredHitScale);
-        runtime.hitVolume.scale.lerp(
-          desiredScale,
-          Math.min(1, delta * 28),
-        );
-      } else {
-        // Do not let the assist volume linger after the ray leaves.
-        runtime.hitVolume.scale.setScalar(1);
-      }
-
+      // Native IWSDK hover is the only targeting authority. The hit volume is
+      // permanently larger so either hand ray is forgiving without false locks.
+      runtime.hitVolume.scale.setScalar(1);
 
       if (!grabbed && runtime.wasGrabbed) {
         runtime.wasGrabbed = false;
@@ -349,25 +266,22 @@ export class CitizenSystem extends CitizenSystemBase {
       }
 
       const haloMaterial = runtime.targetHalo.material as MeshBasicMaterial;
-      runtime.targetHalo.visible = magnetized || grabbed || (hovered && !celebrationMode);
+      runtime.targetHalo.visible = hovered || grabbed;
       haloMaterial.opacity +=
-        ((grabbed ? 0.78 : magnetized ? 0.50 : hovered && !celebrationMode ? 0.58 : 0) -
-          haloMaterial.opacity) *
-        Math.min(1, delta * 16);
+        ((grabbed ? 0.78 : hovered ? 0.58 : 0) - haloMaterial.opacity) *
+        Math.min(1, delta * 18);
       const haloPulse =
         grabbed
           ? 1.14
           : hovered
             ? 1.08 + Math.sin(runtime.elapsed * 7) * 0.07
-            : magnetized
-              ? 1.16 + Math.sin(runtime.elapsed * 6) * 0.08
-              : 1;
+            : 1;
       runtime.targetHalo.scale.setScalar(haloPulse);
 
       if (celebrationMode && !grabbed) {
         const bounce =
           Math.abs(Math.sin(runtime.elapsed * 8 + runtime.seed)) * 0.038;
-        const pulse = magnetized
+        const pulse = hovered
           ? 1.18
           : 1.04 + Math.sin(runtime.elapsed * 7 + runtime.seed) * 0.08;
 
@@ -381,9 +295,9 @@ export class CitizenSystem extends CitizenSystemBase {
 
         for (const material of runtime.materials) {
           material.emissive.setHex(
-            magnetized ? 0x36511f : 0x5c7d24,
+            hovered ? 0x36511f : 0x5c7d24,
           );
-          const targetGlow = magnetized ? 0.95 : 0.78;
+          const targetGlow = hovered ? 0.95 : 0.78;
           material.emissiveIntensity +=
             (targetGlow - material.emissiveIntensity) * Math.min(1, delta * 10);
         }
@@ -430,7 +344,7 @@ export class CitizenSystem extends CitizenSystemBase {
         runtime.visual.rotation.z = 0;
       }
 
-      if ((magnetized || (hovered && !celebrationMode)) && !panicMode) continue;
+      if (hovered && !panicMode) continue;
 
       direction.set(
         runtime.targetX - object.position.x,
@@ -472,7 +386,7 @@ export class CitizenSystem extends CitizenSystemBase {
     } else {
       setHint(
         'The village is alive',
-        'Move either hand ray near a citizen. Magnetic targeting locks the nearest one with a green halo; pinch to pull them up.',
+        'Aim either hand ray at the enlarged citizen target. The green halo appears only on a real ray hit; pinch to grab.',
       );
     }
   }
