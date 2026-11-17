@@ -14,6 +14,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  Object3D,
   Quaternion,
   SphereGeometry,
   Vector3,
@@ -52,7 +53,10 @@ const citizenWorld = new Vector3();
 const toCitizen = new Vector3();
 const closestOnRay = new Vector3();
 
-function rayDistanceToCitizen(ray: Group | undefined, object: Group): number {
+function rayDistanceToCitizen(
+  ray: Group | undefined,
+  object: Object3D,
+): number {
   if (!ray) return Number.POSITIVE_INFINITY;
 
   ray.updateWorldMatrix(true, false);
