@@ -217,8 +217,8 @@ export function createCitizens(world: World, parent: Entity): void {
     entity.addComponent(RayInteractable);
     entity.addComponent(DistanceGrabbable, {
       movementMode: MovementMode.MoveTowardsTarget,
-      moveSpeedFactor: 0.32,
-      targetPositionOffset: [0, 0.08, -0.22],
+      moveSpeedFactor: 0.18,
+      targetPositionOffset: [0, -0.04, -0.48],
       rotate: false,
       scale: false,
       translate: true,
@@ -260,6 +260,8 @@ export class CitizenSystem extends CitizenSystemBase {
 
     const leftHand = this.input.xr.visualAdapters.hand.left;
     const rightHand = this.input.xr.visualAdapters.hand.right;
+    const leftPointer = this.input.xr.visualAdapters.left.value;
+    const rightPointer = this.input.xr.visualAdapters.right.value;
 
     let magneticTarget: Entity | null = null;
     let magneticDistance = Number.POSITIVE_INFINITY;
@@ -269,11 +271,17 @@ export class CitizenSystem extends CitizenSystemBase {
         const object = entity.object3D;
         if (!object) continue;
 
-        const leftDistance = leftHand.connected
-          ? rayDistanceToCitizen(leftHand.raySpace, object)
+        const leftDistance = leftPointer?.connected
+          ? rayDistanceToCitizen(
+              leftPointer.raySpace ?? leftPointer.gripSpace,
+              object,
+            )
           : Number.POSITIVE_INFINITY;
-        const rightDistance = rightHand.connected
-          ? rayDistanceToCitizen(rightHand.raySpace, object)
+        const rightDistance = rightPointer?.connected
+          ? rayDistanceToCitizen(
+              rightPointer.raySpace ?? rightPointer.gripSpace,
+              object,
+            )
           : Number.POSITIVE_INFINITY;
         const distance = Math.min(leftDistance, rightDistance);
 
@@ -306,19 +314,44 @@ export class CitizenSystem extends CitizenSystemBase {
       const magnetized = entity === magneticTarget && !grabbed;
 
       anyGrabbed ||= grabbed;
-      anyHovered ||= hovered || magnetized;
+      anyHovered ||= magnetized || (hovered && !celebrationMode);
 
-      const desiredHitScale = magnetized ? 2.55 : hovered ? 1.55 : 1;
-      desiredScale.setScalar(desiredHitScale);
-      runtime.hitVolume.scale.lerp(
-        desiredScale,
-        Math.min(1, delta * (magnetized ? 24 : 14)),
-      );
+      const desiredHitScale = magnetized ? 2.35 : 1;
+      if (magnetized) {
+        desiredScale.setScalar(desiredHitScale);
+        runtime.hitVolume.scale.lerp(
+          desiredScale,
+          Math.min(1, delta * 28),
+        );
+      } else {
+        // Do not let the assist volume linger after the ray leaves.
+        runtime.hitVolume.scale.setScalar(1);
+      }
+
+
+      if (!grabbed && runtime.wasGrabbed) {
+        runtime.wasGrabbed = false;
+        runtime.visual.position.y = 0;
+        runtime.visual.rotation.z = 0;
+        runtime.visual.scale.setScalar(1);
+
+        const radius = Math.hypot(object.position.x, object.position.z);
+        if (radius > 0.30) {
+          const scale = 0.30 / radius;
+          object.position.x *= scale;
+          object.position.z *= scale;
+        }
+
+        // Citizens always land back on the village/table plane after release.
+        object.position.y = 0;
+        object.rotation.z = 0;
+        nextTarget(runtime);
+      }
 
       const haloMaterial = runtime.targetHalo.material as MeshBasicMaterial;
-      runtime.targetHalo.visible = hovered || magnetized || grabbed;
+      runtime.targetHalo.visible = magnetized || grabbed || (hovered && !celebrationMode);
       haloMaterial.opacity +=
-        ((grabbed ? 0.78 : hovered ? 0.58 : magnetized ? 0.42 : 0) -
+        ((grabbed ? 0.78 : magnetized ? 0.50 : hovered && !celebrationMode ? 0.58 : 0) -
           haloMaterial.opacity) *
         Math.min(1, delta * 16);
       const haloPulse =
@@ -334,7 +367,7 @@ export class CitizenSystem extends CitizenSystemBase {
       if (celebrationMode && !grabbed) {
         const bounce =
           Math.abs(Math.sin(runtime.elapsed * 8 + runtime.seed)) * 0.038;
-        const pulse = hovered || magnetized
+        const pulse = magnetized
           ? 1.18
           : 1.04 + Math.sin(runtime.elapsed * 7 + runtime.seed) * 0.08;
 
@@ -348,9 +381,9 @@ export class CitizenSystem extends CitizenSystemBase {
 
         for (const material of runtime.materials) {
           material.emissive.setHex(
-            hovered || magnetized ? 0x36511f : 0x5c7d24,
+            magnetized ? 0x36511f : 0x5c7d24,
           );
-          const targetGlow = hovered ? 1.05 : magnetized ? 0.9 : 0.78;
+          const targetGlow = magnetized ? 0.95 : 0.78;
           material.emissiveIntensity +=
             (targetGlow - material.emissiveIntensity) * Math.min(1, delta * 10);
         }
@@ -392,27 +425,12 @@ export class CitizenSystem extends CitizenSystemBase {
         continue;
       }
 
-      if (runtime.wasGrabbed) {
-        runtime.wasGrabbed = false;
-        runtime.visual.position.y = 0;
-        runtime.visual.rotation.z = 0;
-        runtime.visual.scale.setScalar(1);
-        const radius = Math.hypot(object.position.x, object.position.z);
-        if (radius > 0.30) {
-          const scale = 0.30 / radius;
-          object.position.x *= scale;
-          object.position.z *= scale;
-        }
-        object.position.y = 0;
-        nextTarget(runtime);
-      }
-
       if (!celebrationMode) {
         runtime.visual.position.y = 0;
         runtime.visual.rotation.z = 0;
       }
 
-      if ((hovered || magnetized) && !panicMode) continue;
+      if ((magnetized || (hovered && !celebrationMode)) && !panicMode) continue;
 
       direction.set(
         runtime.targetX - object.position.x,
