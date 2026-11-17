@@ -31,6 +31,7 @@ type CitizenRuntime = {
   panicSeen: boolean;
   materials: MeshStandardMaterial[];
   visual: Group;
+  targetHalo: Mesh;
 };
 
 let citizensActive = false;
@@ -88,7 +89,7 @@ function citizenModel(
   head.castShadow = false;
 
   const hitVolume = new Mesh(
-    new SphereGeometry(0.065, 10, 8),
+    new SphereGeometry(0.09, 12, 10),
     new MeshBasicMaterial({
       transparent: true,
       opacity: 0.001,
@@ -97,8 +98,21 @@ function citizenModel(
   );
   hitVolume.position.y = 0.065;
 
+  const targetHalo = new Mesh(
+    new SphereGeometry(0.072, 12, 10),
+    new MeshBasicMaterial({
+      color: 0xb9ff7a,
+      transparent: true,
+      opacity: 0,
+      wireframe: true,
+      depthWrite: false,
+    }),
+  );
+  targetHalo.position.y = 0.065;
+  targetHalo.visible = false;
+
   visual.add(body, head);
-  group.add(visual, hitVolume);
+  group.add(visual, hitVolume, targetHalo);
   group.position.set(x, 0, z);
 
   const runtime: CitizenRuntime = {
@@ -112,6 +126,7 @@ function citizenModel(
     panicSeen: false,
     materials: [bodyMaterial, headMaterial],
     visual,
+    targetHalo,
   };
   nextTarget(runtime);
 
@@ -160,7 +175,9 @@ export function createCitizens(world: World, parent: Entity): void {
     const entity = world.createTransformEntity(model, parent);
     entity.addComponent(RayInteractable);
     entity.addComponent(DistanceGrabbable, {
-      movementMode: MovementMode.MoveAtSource,
+      movementMode: MovementMode.MoveTowardsTarget,
+      moveSpeedFactor: 0.32,
+      targetPositionOffset: [0, 0.08, -0.22],
       rotate: false,
       scale: false,
       translate: true,
@@ -221,6 +238,19 @@ export class CitizenSystem extends CitizenSystemBase {
       const hovered = entity.hasComponent(Hovered);
       anyGrabbed ||= grabbed;
       anyHovered ||= hovered;
+
+      const haloMaterial = runtime.targetHalo.material as MeshBasicMaterial;
+      runtime.targetHalo.visible = hovered || grabbed;
+      haloMaterial.opacity +=
+        ((grabbed ? 0.72 : hovered ? 0.46 : 0) - haloMaterial.opacity) *
+        Math.min(1, delta * 14);
+      const haloPulse =
+        grabbed
+          ? 1.12
+          : hovered
+            ? 1 + Math.sin(runtime.elapsed * 7) * 0.08
+            : 1;
+      runtime.targetHalo.scale.setScalar(haloPulse);
 
       if (celebrationMode && !grabbed) {
         const bounce =
@@ -338,12 +368,12 @@ export class CitizenSystem extends CitizenSystemBase {
     } else if (anyHovered) {
       setHint(
         'Citizen targeted',
-        'Pinch and hold to pick them up. The glow rises as your pinch closes.',
+        'Pinch and hold with either hand. The citizen will pull up toward your hand.',
       );
     } else {
       setHint(
         'The village is alive',
-        'Aim your hand ray at a citizen and pinch. No controller-specific action is required.',
+        'Aim either hand ray near a citizen. The larger green halo confirms the target; pinch to pull them up.',
       );
     }
   }
