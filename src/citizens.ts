@@ -14,6 +14,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  Quaternion,
   SphereGeometry,
   Vector3,
 } from 'three';
@@ -32,6 +33,7 @@ type CitizenRuntime = {
   materials: MeshStandardMaterial[];
   visual: Group;
   targetHalo: Mesh;
+  hitVolume: Mesh;
 };
 
 let citizensActive = false;
@@ -40,6 +42,40 @@ let celebrationMode = false;
 let lastHint = '';
 const direction = new Vector3();
 const desiredScale = new Vector3();
+
+const MAGNET_RADIUS = 0.22;
+const MAGNET_MAX_DISTANCE = 3.2;
+const rayOrigin = new Vector3();
+const rayDirection = new Vector3();
+const rayQuaternion = new Quaternion();
+const citizenWorld = new Vector3();
+const toCitizen = new Vector3();
+const closestOnRay = new Vector3();
+
+function rayDistanceToCitizen(ray: Group | undefined, object: Group): number {
+  if (!ray) return Number.POSITIVE_INFINITY;
+
+  ray.updateWorldMatrix(true, false);
+  object.updateWorldMatrix(true, false);
+
+  ray.getWorldPosition(rayOrigin);
+  ray.getWorldQuaternion(rayQuaternion);
+  rayDirection.set(0, 0, -1).applyQuaternion(rayQuaternion).normalize();
+  object.getWorldPosition(citizenWorld);
+
+  toCitizen.copy(citizenWorld).sub(rayOrigin);
+  const alongRay = toCitizen.dot(rayDirection);
+  if (alongRay < 0.04 || alongRay > MAGNET_MAX_DISTANCE) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  closestOnRay
+    .copy(rayDirection)
+    .multiplyScalar(alongRay)
+    .add(rayOrigin);
+
+  return closestOnRay.distanceTo(citizenWorld);
+}
 
 function standardMaterial(color: number): MeshStandardMaterial {
   return new MeshStandardMaterial({
@@ -127,6 +163,7 @@ function citizenModel(
     materials: [bodyMaterial, headMaterial],
     visual,
     targetHalo,
+    hitVolume,
   };
   nextTarget(runtime);
 
@@ -217,6 +254,32 @@ export class CitizenSystem extends CitizenSystemBase {
   update(delta: number): void {
     if (!citizensActive) return;
 
+    const leftHand = this.input.xr.visualAdapters.hand.left;
+    const rightHand = this.input.xr.visualAdapters.hand.right;
+
+    let magneticTarget: Entity | null = null;
+    let magneticDistance = Number.POSITIVE_INFINITY;
+
+    if (!panicMode) {
+      for (const entity of this.queries.citizens.entities) {
+        const object = entity.object3D;
+        if (!object) continue;
+
+        const leftDistance = leftHand.connected
+          ? rayDistanceToCitizen(leftHand.raySpace, object)
+          : Number.POSITIVE_INFINITY;
+        const rightDistance = rightHand.connected
+          ? rayDistanceToCitizen(rightHand.raySpace, object)
+          : Number.POSITIVE_INFINITY;
+        const distance = Math.min(leftDistance, rightDistance);
+
+        if (distance <= MAGNET_RADIUS && distance < magneticDistance) {
+          magneticDistance = distance;
+          magneticTarget = entity;
+        }
+      }
+    }
+
     const pinchStrength = Math.max(
       this.input.xr.visualAdapters.hand.left.getPinchStrength(),
       this.input.xr.visualAdapters.hand.right.getPinchStrength(),
@@ -236,27 +299,39 @@ export class CitizenSystem extends CitizenSystemBase {
 
       const grabbed = entity.hasComponent(Grabbed);
       const hovered = entity.hasComponent(Hovered);
+      const magnetized = entity === magneticTarget && !grabbed;
+
       anyGrabbed ||= grabbed;
-      anyHovered ||= hovered;
+      anyHovered ||= hovered || magnetized;
+
+      const desiredHitScale = magnetized ? 2.55 : hovered ? 1.55 : 1;
+      desiredScale.setScalar(desiredHitScale);
+      runtime.hitVolume.scale.lerp(
+        desiredScale,
+        Math.min(1, delta * (magnetized ? 24 : 14)),
+      );
 
       const haloMaterial = runtime.targetHalo.material as MeshBasicMaterial;
-      runtime.targetHalo.visible = hovered || grabbed;
+      runtime.targetHalo.visible = hovered || magnetized || grabbed;
       haloMaterial.opacity +=
-        ((grabbed ? 0.72 : hovered ? 0.46 : 0) - haloMaterial.opacity) *
-        Math.min(1, delta * 14);
+        ((grabbed ? 0.78 : hovered ? 0.58 : magnetized ? 0.42 : 0) -
+          haloMaterial.opacity) *
+        Math.min(1, delta * 16);
       const haloPulse =
         grabbed
-          ? 1.12
+          ? 1.14
           : hovered
-            ? 1 + Math.sin(runtime.elapsed * 7) * 0.08
-            : 1;
+            ? 1.08 + Math.sin(runtime.elapsed * 7) * 0.07
+            : magnetized
+              ? 1.16 + Math.sin(runtime.elapsed * 6) * 0.08
+              : 1;
       runtime.targetHalo.scale.setScalar(haloPulse);
 
       if (celebrationMode && !grabbed) {
         const bounce =
           Math.abs(Math.sin(runtime.elapsed * 8 + runtime.seed)) * 0.038;
-        const pulse = hovered
-          ? 1.16
+        const pulse = hovered || magnetized
+          ? 1.18
           : 1.04 + Math.sin(runtime.elapsed * 7 + runtime.seed) * 0.08;
 
         // Keep the interaction root and invisible hit volume stationary.
@@ -268,8 +343,10 @@ export class CitizenSystem extends CitizenSystemBase {
         runtime.visual.scale.setScalar(pulse);
 
         for (const material of runtime.materials) {
-          material.emissive.setHex(hovered ? 0x36511f : 0x5c7d24);
-          const targetGlow = hovered ? 1.0 : 0.78;
+          material.emissive.setHex(
+            hovered || magnetized ? 0x36511f : 0x5c7d24,
+          );
+          const targetGlow = hovered ? 1.05 : magnetized ? 0.9 : 0.78;
           material.emissiveIntensity +=
             (targetGlow - material.emissiveIntensity) * Math.min(1, delta * 10);
         }
@@ -331,7 +408,7 @@ export class CitizenSystem extends CitizenSystemBase {
         runtime.visual.rotation.z = 0;
       }
 
-      if (hovered && !panicMode) continue;
+      if ((hovered || magnetized) && !panicMode) continue;
 
       direction.set(
         runtime.targetX - object.position.x,
@@ -373,7 +450,7 @@ export class CitizenSystem extends CitizenSystemBase {
     } else {
       setHint(
         'The village is alive',
-        'Aim either hand ray near a citizen. The larger green halo confirms the target; pinch to pull them up.',
+        'Move either hand ray near a citizen. Magnetic targeting locks the nearest one with a green halo; pinch to pull them up.',
       );
     }
   }
