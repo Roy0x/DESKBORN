@@ -30,7 +30,7 @@ jobs:
           package-manager-cache: false
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --onnxruntime-node-install-cuda=skip
 
       - name: Typecheck
         run: npm run typecheck
