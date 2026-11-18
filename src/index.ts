@@ -29,6 +29,7 @@ import {
   DirectionalLight,
   Group,
   Mesh,
+  MeshBasicMaterial,
   MeshStandardMaterial,
   RingGeometry,
   SphereGeometry,
@@ -46,6 +47,8 @@ type DeskbornState = {
   growth: number;
   pulse: number;
   requestPlant: boolean;
+  leftPinchDown: boolean;
+  rightPinchDown: boolean;
   lastHudMode: string;
 };
 
@@ -60,11 +63,59 @@ const state: DeskbornState = {
   growth: 0,
   pulse: 0,
   requestPlant: false,
+  leftPinchDown: false,
+  rightPinchDown: false,
   lastHudMode: '',
 };
 
 const WORLD_UP = new Vector3(0, 1, 0);
 const surfaceUp = new Vector3();
+
+function stageReveal<T extends Group | Mesh>(object: T, start: number): T {
+  object.userData.deskbornRevealStart = start;
+  object.userData.deskbornRevealScale = object.scale.clone();
+  return object;
+}
+
+function resetVillageReveal(village: Group): void {
+  for (const child of village.children) {
+    const base = child.userData.deskbornRevealScale as Vector3 | undefined;
+    if (!base) continue;
+    child.scale.copy(base).multiplyScalar(0.001);
+  }
+
+  const burst = village.userData.deskbornBirthBurst as Group | undefined;
+  if (burst) burst.visible = false;
+}
+
+function animateVillageReveal(village: Group, progress: number): void {
+  for (const child of village.children) {
+    const start = child.userData.deskbornRevealStart as number | undefined;
+    const base = child.userData.deskbornRevealScale as Vector3 | undefined;
+    if (start === undefined || !base) continue;
+
+    const local = Math.max(0, Math.min(1, (progress - start) / 0.30));
+    const eased = 1 - Math.pow(1 - local, 3);
+    child.scale.copy(base).multiplyScalar(0.001 + eased * 0.999);
+  }
+
+  const burst = village.userData.deskbornBirthBurst as Group | undefined;
+  if (!burst) return;
+
+  burst.visible = progress < 0.9;
+  for (const child of burst.children) {
+    const angle = child.userData.deskbornBurstAngle as number;
+    const phase = child.userData.deskbornBurstPhase as number;
+    const radius = 0.035 + progress * (0.18 + phase * 0.035);
+    child.position.set(
+      Math.cos(angle + progress * 1.4) * radius,
+      0.055 + Math.sin(progress * Math.PI) * (0.10 + phase * 0.035),
+      Math.sin(angle + progress * 1.4) * radius,
+    );
+    const life = Math.sin(Math.min(1, progress / 0.9) * Math.PI);
+    child.scale.setScalar(Math.max(0.001, life * (0.7 + phase * 0.6)));
+  }
+}
 
 function mat(color: number, roughness = 0.72): MeshStandardMaterial {
   return new MeshStandardMaterial({ color, roughness, metalness: 0.04 });
@@ -140,6 +191,7 @@ function buildVillage(): Group {
   );
   island.position.y = 0.021;
   island.receiveShadow = true;
+  stageReveal(island, 0.00);
   village.add(island);
 
   const soil = new Mesh(
@@ -147,6 +199,7 @@ function buildVillage(): Group {
     mat(0x8b6a48),
   );
   soil.position.set(0.045, 0.049, 0.025);
+  stageReveal(soil, 0.08);
   village.add(soil);
 
   const pathMaterial = mat(0xcdbb94, 0.92);
@@ -157,10 +210,12 @@ function buildVillage(): Group {
     [0.075, 0.055, 0.035],
     [0.135, 0.055, 0.065],
   ];
-  for (const [x, y, z] of pathPoints) {
+  for (let i = 0; i < pathPoints.length; i += 1) {
+    const [x, y, z] = pathPoints[i];
     const stone = new Mesh(new BoxGeometry(0.055, 0.008, 0.034), pathMaterial);
     stone.position.set(x, y, z);
     stone.rotation.y = (x + z) * 2.2;
+    stageReveal(stone, 0.14 + i * 0.035);
     village.add(stone);
   }
 
@@ -181,6 +236,7 @@ function buildVillage(): Group {
   wellHole.position.y = 0.094;
   well.add(wellBase, wellHole);
   well.position.set(0.0, 0, 0.105);
+  stageReveal(well, 0.28);
   village.add(well);
 
   const crystalMaterial = new MeshStandardMaterial({
@@ -190,30 +246,50 @@ function buildVillage(): Group {
     roughness: 0.28,
     metalness: 0.05,
   });
-  for (const [x, z] of [
+  const crystalPositions: Array<[number, number]> = [
     [-0.31, -0.02],
     [0.30, 0.15],
     [-0.08, -0.29],
-  ] as Array<[number, number]>) {
+  ];
+  for (let i = 0; i < crystalPositions.length; i += 1) {
+    const [x, z] = crystalPositions[i];
     const crystal = new Mesh(
       new ConeGeometry(0.012, 0.055, 5),
       crystalMaterial,
     );
     crystal.position.set(x, 0.075, z);
     crystal.rotation.y = x * 9;
+    stageReveal(crystal, 0.56 + i * 0.055);
     village.add(crystal);
   }
 
   village.add(
-    house(-0.16, -0.08, 1),
-    house(0.105, -0.145, 0.86),
-    house(0.17, 0.105, 0.72),
-    tree(-0.255, 0.115, 1),
-    tree(-0.045, 0.205, 0.9),
-    tree(0.275, -0.02, 0.76),
-
+    stageReveal(house(-0.16, -0.08, 1), 0.34),
+    stageReveal(house(0.105, -0.145, 0.86), 0.41),
+    stageReveal(house(0.17, 0.105, 0.72), 0.48),
+    stageReveal(tree(-0.255, 0.115, 1), 0.58),
+    stageReveal(tree(-0.045, 0.205, 0.9), 0.65),
+    stageReveal(tree(0.275, -0.02, 0.76), 0.72),
   );
 
+  const birthBurst = new Group();
+  const burstMaterial = new MeshBasicMaterial({
+    color: 0xc9ff8f,
+    transparent: true,
+    opacity: 0.9,
+    depthWrite: false,
+  });
+  for (let i = 0; i < 10; i += 1) {
+    const mote = new Mesh(new SphereGeometry(0.009, 6, 4), burstMaterial);
+    mote.userData.deskbornBurstAngle = (i / 10) * Math.PI * 2;
+    mote.userData.deskbornBurstPhase = (i % 4) / 3;
+    birthBurst.add(mote);
+  }
+  birthBurst.visible = false;
+  village.add(birthBurst);
+  village.userData.deskbornBirthBurst = birthBurst;
+
+  resetVillageReveal(village);
   village.scale.setScalar(0.001);
   village.visible = false;
   return village;
@@ -228,24 +304,24 @@ function setHud(mode: 'scan' | 'invalid' | 'ready' | 'planted'): void {
 
   const content = {
     scan: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.7',
-      title: 'Aim at a surface',
-      sub: 'Point the right-hand ray at a tabletop or other horizontal surface.',
+      eyebrow: 'DESKBORN — SEED',
+      title: 'Find a surface',
+      sub: 'Look at the spot on a tabletop where you want the seed to grow.',
     },
     invalid: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.7',
+      eyebrow: 'DESKBORN — SEED',
       title: 'Find a flatter surface',
       sub: 'The village can only be planted on a reasonably horizontal surface.',
     },
     ready: {
-      eyebrow: 'DESKBORN — SEED / BUILD 0.7',
-      title: 'Pinch / trigger to plant',
-      sub: 'The green ring marks where the miniature world will grow.',
+      eyebrow: 'DESKBORN — SEED',
+      title: 'Plant the seed',
+      sub: 'Keep the green ring in place, then pinch with either hand.',
     },
     planted: {
       eyebrow: 'DESKBORN — SEED',
-      title: 'A tiny world took root.',
-      sub: 'Press R to reset during desktop testing.',
+      title: 'A tiny world took root',
+      sub: 'Reach into the village and meet its citizens.',
     },
   }[mode];
 
@@ -264,8 +340,8 @@ function setHud(mode: 'scan' | 'invalid' | 'ready' | 'planted'): void {
   } else {
     hidePlacementXrUi();
     setVillageXrUi(
-      'A tiny world took root',
-      'Aim at a citizen and pinch / hold to pick them up.',
+      'Touch the world',
+      'Pinch and hold a citizen to lift them.',
       'DESKBORN — LIVING VILLAGE',
       'accent',
     );
@@ -422,6 +498,8 @@ function resetPlacement(): void {
   state.planted = false;
   state.growth = 0;
   state.requestPlant = false;
+  state.leftPinchDown = false;
+  state.rightPinchDown = false;
   setCitizensActive(false);
   resetStorm();
   hideVillageXrUi();
@@ -449,10 +527,11 @@ class DeskbornPlacementSystem extends DeskbornPlacementSystemBase {
     }
 
     if (state.planted && state.village && state.growth < 1) {
-      state.growth = Math.min(1, state.growth + delta / 1.45);
+      state.growth = Math.min(1, state.growth + delta / 2.15);
       const t = 1 - Math.pow(1 - state.growth, 3);
       state.village.scale.setScalar(Math.max(0.001, t));
       state.village.rotation.y = (1 - t) * -0.16;
+      animateVillageReveal(state.village, state.growth);
       if (state.growth >= 1) {
         setCitizensActive(true);
         setStormReady(true);
@@ -486,9 +565,45 @@ class DeskbornPlacementSystem extends DeskbornPlacementSystemBase {
 
     setHud(!hasHit ? 'scan' : !hasValidHorizontalHit ? 'invalid' : 'ready');
 
-    const rightSelect = this.input.gamepads.right?.getSelectStart() ?? false;
-    const leftSelect = this.input.gamepads.left?.getSelectStart() ?? false;
-    if (!(rightSelect || leftSelect || state.requestPlant)) return;
+    const rightControllerSelect =
+      this.input.gamepads.right?.getSelectStart() ?? false;
+    const leftControllerSelect =
+      this.input.gamepads.left?.getSelectStart() ?? false;
+
+    const leftHand = this.input.xr.visualAdapters.hand.left;
+    const rightHand = this.input.xr.visualAdapters.hand.right;
+    const leftPinchNow =
+      leftHand.connected && leftHand.getPinchStrength() > 0.72;
+    const rightPinchNow =
+      rightHand.connected && rightHand.getPinchStrength() > 0.72;
+    const leftPinchStart = leftPinchNow && !state.leftPinchDown;
+    const rightPinchStart = rightPinchNow && !state.rightPinchDown;
+    state.leftPinchDown = leftPinchNow;
+    state.rightPinchDown = rightPinchNow;
+
+    const xrInput = this.input.xr as typeof this.input.xr & {
+      getSelectState?: (
+        handedness: 'left' | 'right',
+      ) => { start: boolean; end: boolean; active: boolean };
+    };
+    const leftNativeHandSelect =
+      xrInput.getSelectState?.('left')?.start ?? false;
+    const rightNativeHandSelect =
+      xrInput.getSelectState?.('right')?.start ?? false;
+
+    if (
+      !(
+        rightControllerSelect ||
+        leftControllerSelect ||
+        leftNativeHandSelect ||
+        rightNativeHandSelect ||
+        leftPinchStart ||
+        rightPinchStart ||
+        state.requestPlant
+      )
+    ) {
+      return;
+    }
     state.requestPlant = false;
 
     this.queries.raycastTargets.entities.forEach((entity) => {
@@ -508,6 +623,7 @@ class DeskbornPlacementSystem extends DeskbornPlacementSystemBase {
       const placementOffset = surfaceUp.clone().multiplyScalar(0.012);
       state.village.position.copy(object.position).add(placementOffset);
       state.village.quaternion.copy(object.quaternion);
+      resetVillageReveal(state.village);
       state.village.scale.setScalar(0.001);
       state.village.visible = true;
       state.planted = true;
@@ -567,7 +683,7 @@ World.create(sceneContainer, projectOptions).then((world) => {
 
   const previewEntity = world.createTransformEntity(previewGroup);
   previewEntity.addComponent(EnvironmentRaycastTarget, {
-    space: RaycastSpace.Right,
+    space: RaycastSpace.Viewer,
     maxDistance: 4,
   });
 
@@ -599,13 +715,13 @@ World.create(sceneContainer, projectOptions).then((world) => {
       event.preventDefault();
     } else if (event.key.toLowerCase() === 'r') {
       resetPlacement();
-    } else if (event.key.toLowerCase() === 'h') {
+    } else if (event.code === 'KeyH' || event.key.toLowerCase() === 'h') {
       setTestShield(true);
     }
   });
 
   window.addEventListener('keyup', (event) => {
-    if (event.key.toLowerCase() === 'h') {
+    if (event.code === 'KeyH' || event.key.toLowerCase() === 'h') {
       setTestShield(false);
     }
   });
